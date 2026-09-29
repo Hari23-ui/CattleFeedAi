@@ -85,4 +85,29 @@ export const storageUnitService = {
   async getLatestSensorReading(storageUnitId: number): Promise<SensorReading> {
     return apiClient.get<SensorReading>(`/api/storage-units/${storageUnitId}/sensor-readings/latest`);
   },
+
+  /**
+   * Setup or retrieve the evaluator "Demo Storage Godown" (ESP32-DEMO-001).
+   * POST /api/storage-units/demo
+   */
+  async createOrGetDemoStorageUnit(): Promise<StorageUnit> {
+    return apiClient.post<StorageUnit>('/api/storage-units/demo', {});
+  },
+
+  /**
+   * Retrieve recent SMS dispatches for demo evaluation.
+   * GET /api/storage-units/demo/sms-logs
+   */
+  async getDemoSmsLogs(): Promise<any[]> {
+    return apiClient.get<any[]>('/api/storage-units/demo/sms-logs');
+  },
+
+  /**
+   * Trigger demo test SMS notification.
+   * POST /api/storage-units/demo/trigger-sms
+   */
+  async triggerDemoSms(phone?: string): Promise<any> {
+    const url = phone ? `/api/storage-units/demo/trigger-sms?phone=${encodeURIComponent(phone)}` : '/api/storage-units/demo/trigger-sms';
+    return apiClient.post<any>(url, {});
+  },
 };

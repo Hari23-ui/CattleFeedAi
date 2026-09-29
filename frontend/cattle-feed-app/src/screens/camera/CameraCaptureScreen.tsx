@@ -24,7 +24,7 @@ type CaptureMode = 'CAMERA' | 'PREVIEW' | 'UPLOADING';
 export const CameraCaptureScreen: React.FC = () => {
   const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute<ScreenProps<'CameraCapture'>['route']>();
-  const { sampleType, sampleId, sampleCode } = route.params;
+  const { sampleType = 'FEED', sampleId = 0, sampleCode = 'DEMO-SAMPLE' } = route.params || {};
 
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');

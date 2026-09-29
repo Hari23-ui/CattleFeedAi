@@ -62,7 +62,7 @@ const PRIORITY_BADGE_STYLES: Record<Priority, { bg: string; text: string }> = {
 export const AnimalHealthScreeningScreen: React.FC = () => {
   const navigation = useNavigation<AppNavigationProp>();
   const route = useRoute<ScreenProps<'AnimalHealthScreening'>['route']>();
-  const { animalId } = route.params;
+  const animalId = route.params?.animalId;
 
   const [animal, setAnimal] = useState<Animal | null>(null);
   const [screening, setScreening] = useState<AnimalHealthScreeningResponse | null>(null);
@@ -74,6 +74,10 @@ export const AnimalHealthScreeningScreen: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (!animalId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       setErrorMessage(null);
       const [animalRes, screenRes, feedRes, silageRes, advRes] = await Promise.all([
@@ -105,6 +109,25 @@ export const AnimalHealthScreeningScreen: React.FC = () => {
     setIsRefreshing(true);
     loadData();
   }, [loadData]);
+
+  if (!animalId) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.container}>
+        <AppCard style={{ alignItems: 'center', padding: spacing.xl }}>
+          <Text style={{ fontSize: typography.fontSize.title, fontWeight: '700', marginBottom: spacing.sm, color: colors.textPrimary }}>
+            Select an Animal
+          </Text>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: spacing.lg }}>
+            Please select an animal from your herd to view its individualized nutritional health risk screening.
+          </Text>
+          <AppButton
+            title="View Livestock Herd"
+            onPress={() => navigation.navigate('AnimalList')}
+          />
+        </AppCard>
+      </ScreenContainer>
+    );
+  }
 
   if (isLoading) {
     return <LoadingView message="Loading animal profile and health screening..." />;

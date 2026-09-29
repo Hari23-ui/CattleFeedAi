@@ -14,3 +14,10 @@ export interface UserProfile {
   language?: string;
   createdAt?: string;
 }
+
+export interface UpdateProfileRequest {
+  username?: string;
+  phone?: string;
+  language?: string;
+}
+

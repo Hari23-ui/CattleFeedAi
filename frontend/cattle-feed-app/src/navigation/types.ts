@@ -5,6 +5,7 @@ import { NativeStackNavigationProp, NativeStackScreenProps } from '@react-naviga
  */
 
 export type AuthStackParamList = {
+  Landing: undefined;
   Login: undefined;
   Register: undefined;
 };
@@ -103,6 +104,7 @@ export type AppStackParamList = {
 
   // Future Milestones
   Profile: undefined;
+  EditProfile: undefined;
 };
 
 export type RootStackParamList = {

@@ -5,10 +5,13 @@ import com.cattlefeedai.api.dto.SensorReadingResponse;
 import com.cattlefeedai.api.dto.StorageMonitoringSummaryDto;
 import com.cattlefeedai.api.dto.StorageUnitRequest;
 import com.cattlefeedai.api.dto.StorageUnitResponse;
+import com.cattlefeedai.api.dto.SmsRecord;
 import com.cattlefeedai.api.service.StorageUnitService;
+import com.cattlefeedai.api.service.sms.SmsNotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,9 +27,11 @@ import java.util.List;
 public class StorageUnitController {
 
     private final StorageUnitService storageUnitService;
+    private final SmsNotificationService smsNotificationService;
 
-    public StorageUnitController(StorageUnitService storageUnitService) {
+    public StorageUnitController(StorageUnitService storageUnitService, @Autowired(required = false) SmsNotificationService smsNotificationService) {
         this.storageUnitService = storageUnitService;
+        this.smsNotificationService = smsNotificationService;
     }
 
     /**
@@ -58,6 +63,41 @@ public class StorageUnitController {
         StorageMonitoringSummaryDto summary = storageUnitService.getStorageMonitoringSummary();
         return ResponseEntity.ok(summary);
     }
+
+    /**
+     * POST /api/storage-units/demo - Setup / retrieve demo storage unit for judge demo.
+     */
+    @Operation(summary = "Get or create demo storage unit", description = "Initializes a pre-configured 'Demo Storage Godown' (SILAGE_STORAGE, ESP32-DEMO-001) with sample telemetry for evaluator walkthroughs.")
+    @PostMapping("/demo")
+    public ResponseEntity<StorageUnitResponse> createOrGetDemoStorageUnit() {
+        StorageUnitResponse response = storageUnitService.createOrGetDemoStorageUnit();
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/storage-units/demo/sms-logs - Retrieve recent mock/sent SMS dispatches for demo.
+     */
+    @Operation(summary = "Get recent SMS notifications", description = "Retrieves recent mock/sent SMS dispatches for storage condition alerts for judges and evaluators.")
+    @GetMapping("/demo/sms-logs")
+    public ResponseEntity<List<SmsRecord>> getDemoSmsLogs() {
+        if (smsNotificationService == null) {
+            return ResponseEntity.ok(List.of());
+        }
+        return ResponseEntity.ok(smsNotificationService.getRecentDispatches());
+    }
+
+    /**
+     * POST /api/storage-units/demo/trigger-sms - Trigger test demo SMS for judges.
+     */
+    @Operation(summary = "Trigger demo test SMS", description = "Dispatches a simulated test SMS notification for judges to evaluate carrier output.")
+    @PostMapping("/demo/trigger-sms")
+    public ResponseEntity<SmsRecord> triggerDemoSms(@RequestParam(required = false) String phone) {
+        if (smsNotificationService == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
+        return ResponseEntity.ok(smsNotificationService.triggerTestSms(phone));
+    }
+
 
     /**
      * GET /api/storage-units/{id} - Get storage unit details by ID.

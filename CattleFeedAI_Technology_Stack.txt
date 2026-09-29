@@ -1,0 +1,176 @@
+CATTLEFEEDAI — TECHNOLOGY STACK
+
+1. MOBILE FRONTEND
+- React Native — Cross-platform mobile application
+- Expo — Development and device integration framework
+- TypeScript — Type-safe frontend development
+- React Navigation — Screen and navigation management
+- Expo Camera — Mobile camera capture
+- Expo Image Picker — Gallery/image selection
+- Expo Secure Store — Secure JWT/token storage
+
+2. BACKEND
+- Java 17 — Backend programming language
+- Spring Boot 3.x — Main backend framework
+- Spring Web / REST — REST API development
+- Spring Data JPA — Database interaction
+- Hibernate — ORM
+- Spring Security 6 — Authentication and authorization
+- JWT — Stateless authentication
+- BCrypt — Password hashing
+- Lombok — Java boilerplate reduction
+- Swagger / OpenAPI — API documentation and testing
+
+3. DATABASE
+- MySQL 8+ — Persistent relational database
+- InnoDB — Database storage engine
+- UTF8MB4 — Character encoding
+
+Main stored data includes:
+- Users
+- Farms
+- Animals
+- Feed Samples
+- Silage Samples
+- Test Results
+- Sample Images
+- Health Observations
+- Health Risks
+- Advisories
+- Alerts
+- Consultations
+- Experts
+- Feed Plans
+- Storage Units
+- Sensor Readings
+
+4. AI / COMPUTER VISION
+- Python 3.10+ — AI service language
+- FastAPI — AI microservice
+- Uvicorn — FastAPI server
+- Pillow — Image processing and validation
+- NumPy — Image/feature processing
+- Computer Vision — Visual surface screening
+- Modular ML architecture — Visual screening model integration
+- Deterministic fallback — Used when an ML model is unavailable
+
+IMPORTANT AI BOUNDARY:
+The camera/AI system performs visual surface screening only.
+It does not claim to measure crude protein, moisture, fiber, energy,
+aflatoxin, mycotoxin, minerals, urea, or pH from ordinary camera images.
+It also does not diagnose animal diseases.
+
+5. CAMERA AND IMAGE PIPELINE
+
+Mobile/Web Camera
+        ↓
+Expo Camera / Image Picker
+        ↓
+Image Validation
+        ↓
+Spring Boot Image API
+        ↓
+FastAPI AI Service
+        ↓
+Visual Analysis
+        ↓
+ML Visual Screening OR Deterministic Fallback
+        ↓
+Visual Screening Result
+
+6. STORAGE UNIT MONITORING / IoT
+
+- ESP32 — IoT microcontroller
+- DS18B20 — Temperature sensor
+- Industrial pH Sensor — pH measurement
+- DHT22 — Optional humidity sensor
+- HTTP + JSON — Sensor telemetry communication
+- Spring Boot StorageMonitoringService — Monitoring and anomaly detection
+- MySQL — Sensor reading storage
+- Existing AlertService — In-app storage alerts
+
+Current storage monitoring flow:
+
+ESP32 + Sensors
+        ↓
+HTTP/JSON Telemetry
+        ↓
+Spring Boot REST API
+        ↓
+SensorReading
+        ↓
+Storage Monitoring Engine
+        ↓
+Temperature / pH condition detection
+        ↓
+AlertService
+        ↓
+Farmer Mobile Application
+
+IMPORTANT:
+The storage monitoring software pipeline is ready for device connection.
+Physical ESP32 hardware was not connected during the software validation
+reported for the current module.
+
+7. SECURITY
+
+- Spring Security
+- JWT Authentication
+- BCrypt Password Hashing
+- Role-Based Authorization
+- Farm/Owner-Based Data Isolation
+- Protected REST APIs
+- Secure Image Access
+- Stateless REST Security
+
+8. TESTING
+
+Frontend:
+- Jest
+- React Native Testing Library where applicable
+- TypeScript compiler
+
+Backend:
+- Maven
+- JUnit / Spring Boot testing
+
+AI:
+- Pytest
+
+9. BUILD AND DEPENDENCY TOOLS
+
+- npm
+- Maven
+- pip
+- Expo CLI
+- Uvicorn
+
+10. DEVELOPMENT ARCHITECTURE
+
+React Native + Expo + TypeScript
+                |
+                | REST + JWT
+                ↓
+Java 17 + Spring Boot
+       |                |
+       |                |
+       ↓                ↓
+    MySQL          FastAPI AI Service
+                     |
+                     ↓
+              Computer Vision
+
+Storage Monitoring:
+
+ESP32 + Sensors
+        |
+        | HTTP/JSON
+        ↓
+Spring Boot
+        |
+        ↓
+MySQL + AlertService
+        |
+        ↓
+React Native Application
+

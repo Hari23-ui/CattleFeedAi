@@ -68,14 +68,17 @@ import {
   AddStorageUnitScreen,
   RecordSensorReadingScreen,
 } from '../screens/storage';
+import { EditProfileScreen, ProfileScreen } from '../screens/profile';
+import { AppLayout } from './AppLayout';
 import { AppStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 export const AppNavigator: React.FC = () => {
   return (
-    <Stack.Navigator
-      initialRouteName="Dashboard"
+    <AppLayout>
+      <Stack.Navigator
+        initialRouteName="Dashboard"
       screenOptions={{
         headerShown: true,
         headerStyle: { backgroundColor: colors.surface },
@@ -507,7 +510,22 @@ export const AppNavigator: React.FC = () => {
           title: 'Ingest Sensor Telemetry',
         }}
       />
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          title: 'Farmer Profile',
+        }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{
+          title: 'Edit Profile',
+        }}
+      />
     </Stack.Navigator>
+  </AppLayout>
   );
 };
 

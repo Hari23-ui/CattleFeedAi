@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -18,8 +19,10 @@ import {
 import { borderRadius, colors, spacing, typography } from '../../constants/theme';
 import { MonitoringStatus, StorageType, StorageUnit } from '../../models/storageUnit';
 import { SensorReading } from '../../models/sensorReading';
+import { Alert } from '../../models/alert';
 import { AppNavigationProp, ScreenProps } from '../../navigation/types';
 import { storageUnitService } from '../../services/storageUnitService';
+import { alertService } from '../../services/alertService';
 import { getFarmerFriendlyErrorMessage } from '../../utils/errorHandler';
 
 const STORAGE_TYPE_LABELS: Record<StorageType, string> = {
@@ -73,15 +76,25 @@ export const StorageUnitDetailsScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Judge Demo & Storage Alerts State
+  const [unitAlerts, setUnitAlerts] = useState<Alert[]>([]);
+  const [simulating, setSimulating] = useState<boolean>(false);
+  const [simulationSuccess, setSimulationSuccess] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     try {
       setErrorMessage(null);
-      const [unitData, historyData] = await Promise.all([
+      const [unitData, historyData, allAlerts] = await Promise.all([
         storageUnitService.getStorageUnitById(storageUnitId),
         storageUnitService.getSensorReadings(storageUnitId).catch(() => [] as SensorReading[]),
+        alertService.getAlerts().catch(() => [] as Alert[]),
       ]);
       setUnit(unitData);
       setHistory(historyData);
+      const filtered = allAlerts.filter(
+        (a) => a.relatedEntityType === 'STORAGE_UNIT' && Number(a.relatedEntityId) === Number(storageUnitId)
+      );
+      setUnitAlerts(filtered);
     } catch (err) {
       setErrorMessage(getFarmerFriendlyErrorMessage(err));
     } finally {
@@ -89,6 +102,28 @@ export const StorageUnitDetailsScreen: React.FC = () => {
       setIsRefreshing(false);
     }
   }, [storageUnitId]);
+
+  const handleSimulateTelemetry = async (temp: number, ph: number, humidity: number, label: string) => {
+    try {
+      setSimulating(true);
+      setErrorMessage(null);
+      setSimulationSuccess(null);
+
+      await storageUnitService.recordSensorReading(storageUnitId, {
+        temperature: temp,
+        ph: ph,
+        humidity: humidity,
+        readingTime: new Date().toISOString(),
+      });
+
+      setSimulationSuccess(`Telemetry ingested via backend API: ${label}. Condition evaluated by StorageMonitoringService.`);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMessage(getFarmerFriendlyErrorMessage(err));
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -209,6 +244,87 @@ export const StorageUnitDetailsScreen: React.FC = () => {
             style={styles.actionBtn}
           />
         </View>
+      </AppCard>
+
+      {/* Telemetry Classification & Judge Simulation Panel */}
+      <AppCard style={styles.demoSimCard}>
+        <View style={styles.demoSimHeader}>
+          {unit.deviceId === 'ESP32-DEMO-001' || unit.name?.toLowerCase().includes('demo') ? (
+            <View style={styles.demoTag}>
+              <Text style={styles.demoTagText}>DEMO TELEMETRY • ESP32-DEMO-001</Text>
+            </View>
+          ) : (
+            <View style={styles.liveTag}>
+              <Text style={styles.liveTagText}>LIVE IOT TELEMETRY • {unit.deviceId || 'MANUAL SENSOR'}</Text>
+            </View>
+          )}
+          <Text style={styles.demoSimTitle}>Evaluator Simulation Pipeline</Text>
+        </View>
+
+        <Text style={styles.demoSimNotice}>
+          Hardware Ready: The current project is ready for physical ESP32 connection; in software demo testing,
+          simulated telemetry passes through the exact same backend ingestion API, monitoring engine, and India DLT SMS architecture.
+        </Text>
+
+        {simulationSuccess && (
+          <View style={styles.simSuccessBanner}>
+            <Text style={styles.simSuccessText}>{simulationSuccess}</Text>
+          </View>
+        )}
+
+        <Text style={styles.simSubheader}>Inject Test Telemetry via Backend Engine:</Text>
+        <View style={styles.simButtonsRow}>
+          <TouchableOpacity
+            style={styles.simChipNormal}
+            onPress={() => handleSimulateTelemetry(24.0, 4.0, 65.0, 'Normal (24°C, pH 4.0)')}
+            disabled={simulating}
+            activeOpacity={0.8}
+            testID="sim-normal-btn"
+          >
+            <Text style={styles.simChipTextNormal}>🟢 Normal (24°C, pH 4.0)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.simChipWarn}
+            onPress={() => handleSimulateTelemetry(35.8, 4.2, 70.0, 'Elevated Temp (35.8°C)')}
+            disabled={simulating}
+            activeOpacity={0.8}
+            testID="sim-temp-anomaly-btn"
+          >
+            <Text style={styles.simChipTextWarn}>⚠️ Temp Rise (35.8°C)</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.simButtonsRow}>
+          <TouchableOpacity
+            style={styles.simChipWarn}
+            onPress={() => handleSimulateTelemetry(26.0, 5.8, 68.0, 'Abnormal pH (5.8)')}
+            disabled={simulating}
+            activeOpacity={0.8}
+            testID="sim-ph-anomaly-btn"
+          >
+            <Text style={styles.simChipTextWarn}>⚠️ High pH (5.8)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.simChipDanger}
+            onPress={() => handleSimulateTelemetry(Number(unit.latestTemperature || 25) + 6.0, 4.5, 75.0, 'Sudden Rise (+6°C)')}
+            disabled={simulating}
+            activeOpacity={0.8}
+            testID="sim-rapid-heat-btn"
+          >
+            <Text style={styles.simChipTextDanger}>🔥 Rapid Rise (+6°C)</Text>
+          </TouchableOpacity>
+        </View>
+
+        {simulating && (
+          <View style={{ alignItems: 'center', marginTop: spacing.sm }}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>
+              Ingesting telemetry and evaluating monitoring thresholds...
+            </Text>
+          </View>
+        )}
       </AppCard>
 
       {/* 2. Latest Sensor Telemetry Panel */}
@@ -370,7 +486,38 @@ export const StorageUnitDetailsScreen: React.FC = () => {
         </AppCard>
       )}
 
-      {/* 5. Scientific Boundary & Disclaimer Notice */}
+      {/* 5. Recent Storage Condition Alerts */}
+      <Text style={styles.sectionTitle}>Recent Condition Alerts ({unitAlerts.length})</Text>
+      {unitAlerts.length === 0 ? (
+        <AppCard style={styles.emptyAlertsCard}>
+          <Text style={styles.emptyAlertsText}>
+            ✅ No active condition alerts recorded for this storage unit. Monitored parameters are within normal baseline thresholds.
+          </Text>
+        </AppCard>
+      ) : (
+        unitAlerts.slice(0, 5).map((alert) => (
+          <AppCard key={alert.id} style={styles.alertCardItem}>
+            <View style={styles.alertHeaderRow}>
+              <View
+                style={[
+                  styles.severityBadge,
+                  alert.severity === 'CRITICAL' ? styles.severityCritical : styles.severityWarning,
+                ]}
+              >
+                <Text style={styles.severityBadgeText}>{alert.severity}</Text>
+              </View>
+              <Text style={styles.alertTimeText}>{formatTime(alert.createdAt)}</Text>
+            </View>
+            <Text style={styles.alertCardTitle}>{alert.title}</Text>
+            <Text style={styles.alertCardMessage}>{alert.message}</Text>
+            <Text style={styles.alertComplianceNotice}>
+              Safe Advisory: Storage condition change detected. Please inspect temperature, humidity, and ventilation.
+            </Text>
+          </AppCard>
+        ))
+      )}
+
+      {/* 6. Scientific Boundary & Disclaimer Notice */}
       <View style={styles.boundaryCard}>
         <Text style={styles.boundaryTitle}>ℹ️ Storage Condition Monitoring Notice</Text>
         <Text style={styles.boundaryText}>
@@ -567,5 +714,183 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0C4A6E',
     lineHeight: 18,
+  },
+  demoSimCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#3B82F6',
+    marginBottom: spacing.lg,
+  },
+  demoSimHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  demoTag: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.xs,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  demoTagText: {
+    color: '#1E40AF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  liveTag: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.xs,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  liveTagText: {
+    color: '#4B5563',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  demoSimTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  demoSimNotice: {
+    fontSize: 11,
+    color: '#2563EB',
+    lineHeight: 16,
+    marginBottom: spacing.sm,
+  },
+  simSuccessBanner: {
+    backgroundColor: '#DCFCE7',
+    padding: spacing.sm,
+    borderRadius: borderRadius.xs,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    marginBottom: spacing.sm,
+  },
+  simSuccessText: {
+    color: '#166534',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  simSubheader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: spacing.xs,
+  },
+  simButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  simChipNormal: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+  },
+  simChipTextNormal: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  simChipWarn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EA580C',
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+  },
+  simChipTextWarn: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+  simChipDanger: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    paddingVertical: spacing.xs + 3,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+  },
+  simChipTextDanger: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B91C1C',
+  },
+  emptyAlertsCard: {
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  emptyAlertsText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  alertCardItem: {
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  alertHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  severityBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 1,
+    borderRadius: borderRadius.xs,
+  },
+  severityWarning: {
+    backgroundColor: '#FEF3C7',
+  },
+  severityCritical: {
+    backgroundColor: '#FEE2E2',
+  },
+  severityBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  alertTimeText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  alertCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  alertCardMessage: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  alertComplianceNotice: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontStyle: 'italic',
   },
 });

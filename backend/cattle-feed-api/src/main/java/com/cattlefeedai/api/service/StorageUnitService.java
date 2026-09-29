@@ -18,9 +18,11 @@ import com.cattlefeedai.api.repository.FarmRepository;
 import com.cattlefeedai.api.repository.SensorReadingRepository;
 import com.cattlefeedai.api.repository.StorageUnitRepository;
 import com.cattlefeedai.api.security.SecurityUtils;
+import com.cattlefeedai.api.entity.enums.StorageType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -79,6 +81,57 @@ public class StorageUnitService {
 
         StorageUnit saved = storageUnitRepository.save(unit);
         return enrichResponse(saved);
+    }
+
+    /**
+     * Create or retrieve a demo-friendly storage unit for evaluators/judges.
+     * Ensures an immediate working demo scenario is available without manual setup.
+     */
+    public StorageUnitResponse createOrGetDemoStorageUnit() {
+        User currentUser = securityUtils.getCurrentUser();
+
+        List<StorageUnit> existingUnits = storageUnitRepository.findByFarmOwnerId(currentUser.getId());
+        for (StorageUnit u : existingUnits) {
+            if ("Demo Storage Godown".equalsIgnoreCase(u.getName())) {
+                return enrichResponse(u);
+            }
+        }
+
+        // Find or create default farm
+        List<Farm> farms = farmRepository.findByOwnerId(currentUser.getId());
+        Farm farm;
+        if (farms.isEmpty()) {
+            Farm newFarm = new Farm();
+            newFarm.setFarmName("Demo Model Dairy Farm");
+            newFarm.setLocation("Demonstration Sector 1");
+            newFarm.setOwner(currentUser);
+            farm = farmRepository.save(newFarm);
+        } else {
+            farm = farms.get(0);
+        }
+
+        StorageUnit demoUnit = new StorageUnit();
+        demoUnit.setName("Demo Storage Godown");
+        demoUnit.setStorageType(StorageType.SILAGE_STORAGE);
+        demoUnit.setLocation("Demo Agro-Yard Sector 1");
+        demoUnit.setCapacity("50 Metric Tons");
+        demoUnit.setDeviceId("ESP32-DEMO-001");
+        demoUnit.setFarm(farm);
+
+        StorageUnit savedUnit = storageUnitRepository.save(demoUnit);
+
+        // Ingest baseline normal reading
+        SensorReading baseline = new SensorReading();
+        baseline.setStorageUnit(savedUnit);
+        baseline.setReadingTime(LocalDateTime.now().minusHours(2));
+        baseline.setTemperature(new BigDecimal("26.5"));
+        baseline.setPh(new BigDecimal("4.2"));
+        baseline.setHumidity(new BigDecimal("65.0"));
+        baseline.setSource(SensorSource.IOT);
+        baseline.setDeviceId("ESP32-DEMO-001");
+        sensorReadingRepository.save(baseline);
+
+        return enrichResponse(savedUnit);
     }
 
     /**

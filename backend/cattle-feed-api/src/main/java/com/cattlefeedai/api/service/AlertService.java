@@ -42,10 +42,21 @@ public class AlertService {
 
     private final AlertRepository alertRepository;
     private final SecurityUtils securityUtils;
+    private final com.cattlefeedai.api.service.sms.SmsNotificationService smsNotificationService;
 
     public AlertService(AlertRepository alertRepository, SecurityUtils securityUtils) {
+        this(alertRepository, securityUtils, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AlertService(
+            AlertRepository alertRepository,
+            SecurityUtils securityUtils,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.cattlefeedai.api.service.sms.SmsNotificationService smsNotificationService
+    ) {
         this.alertRepository = alertRepository;
         this.securityUtils = securityUtils;
+        this.smsNotificationService = smsNotificationService;
     }
 
     /**
@@ -157,6 +168,15 @@ public class AlertService {
 
         Alert saved = alertRepository.save(alert);
         log.info("Created alert id={} type={} severity={} for user id={}", saved.getId(), saved.getAlertType(), saved.getSeverity(), user.getId());
+
+        if (smsNotificationService != null && saved.getAlertType() == AlertType.STORAGE) {
+            try {
+                smsNotificationService.sendStorageAlertSms(saved, null);
+            } catch (Exception ex) {
+                log.warn("Failed to dispatch storage SMS notification: {}", ex.getMessage());
+            }
+        }
+
         return saved;
     }
 
