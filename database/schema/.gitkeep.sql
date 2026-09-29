@@ -1,0 +1,3 @@
+-- CattleFeedAI Database Schema
+-- This directory will contain DDL scripts for creating database tables.
+-- Schema files will be added as entities are implemented in the backend.

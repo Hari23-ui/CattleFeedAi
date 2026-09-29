@@ -1,0 +1,77 @@
+================================================================================
+CATTLEFEEDAI — OFFICIAL SYSTEM STARTUP COMMANDS
+================================================================================
+
+ORDER OF STARTUP:
+1. MySQL 8.0 (Service: MySQL80 on Port 3306)
+2. FastAPI AI Service (Python 3.10 Virtual Environment on Port 8000)
+3. Spring Boot Backend (Java 24 / Maven on Port 8080)
+4. React Native / Expo Frontend (Metro Bundler on Port 8081)
+
+--------------------------------------------------------------------------------
+PREREQUISITE: Ensure MySQL Service is Running (Port 3306)
+--------------------------------------------------------------------------------
+In PowerShell (Administrator or standard):
+Get-Service MySQL80
+
+If status is Stopped, start it:
+Start-Service MySQL80
+
+Database "cattlefeedai" already exists with all 16 tables.
+
+--------------------------------------------------------------------------------
+TERMINAL 1 — FastAPI AI Microservice (Port 8000)
+--------------------------------------------------------------------------------
+Open a new PowerShell terminal and run:
+
+cd d:\CattleFeedAI\ai-service
+.\venv\Scripts\Activate.ps1
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# NOTE: If PowerShell ExecutionPolicy blocks Activate.ps1, run directly without activation:
+# cd d:\CattleFeedAI\ai-service
+# .\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+Verification:
+Visit: http://localhost:8000/health
+Or PowerShell: curl http://localhost:8000/health
+
+--------------------------------------------------------------------------------
+TERMINAL 2 — Spring Boot Backend API (Port 8080)
+--------------------------------------------------------------------------------
+Open a new PowerShell terminal and run:
+
+cd d:\CattleFeedAI\backend\cattle-feed-api
+mvn spring-boot:run
+
+Verification:
+Swagger UI: http://localhost:8080/swagger-ui.html
+AI Integration Check: http://localhost:8080/api/ai/health
+
+--------------------------------------------------------------------------------
+TERMINAL 3 — React Native / Expo Frontend (Port 8081)
+--------------------------------------------------------------------------------
+Your Wi-Fi LAN IP is: 10.161.215.78
+(A .env file has been created in frontend/cattle-feed-app pointing to http://10.161.215.78:8080)
+
+To start Expo:
+cd d:\CattleFeedAI\frontend\cattle-feed-app
+npm start
+
+* For Physical Android Phone (Expo Go):
+  - Scan the terminal QR code with the Expo Go app on your phone.
+  - If you previously had the app open on your phone, shake the phone and tap "Reload" (or press 'r' in the terminal) so it picks up the backend URL.
+  - On the login screen, tap "Register New Account" at the bottom to create your farmer account.
+
+* For Web Browser:
+  - Either press 'w' inside the running npm start terminal
+  - Or in a separate command: npm run web (Do NOT type npm start --w)
+
+* For Android Emulator:
+  - Press 'a' inside the running npm start terminal
+
+================================================================================
+SHUTDOWN / STOP COMMANDS
+================================================================================
+To stop any service: Press Ctrl + C in its respective terminal window.
+================================================================================

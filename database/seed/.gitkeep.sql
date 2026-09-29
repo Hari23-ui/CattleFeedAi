@@ -1,0 +1,3 @@
+-- CattleFeedAI Seed Data
+-- This directory will contain INSERT scripts for initial/test data.
+-- Seed files will be added as the database schema is finalized.

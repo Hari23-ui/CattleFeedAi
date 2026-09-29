@@ -1,0 +1,278 @@
+================================================================================
+CattleFeedAI — Milestone 6.6: Camera / Webcam Capture Summary
+================================================================================
+
+1. MILESTONE NAME
+-----------------
+M6.6 — Camera / Webcam Capture
+
+
+2. OBJECTIVE
+------------
+Build a production-grade, reusable image capture, preview, validation, attachment,
+upload, and retrieval pipeline for Feed Samples and Silage Samples across mobile
+devices (phone camera) and PC/web (webcam and file picker), with strict backend
+ownership security and clear scientific/AI boundaries.
+
+
+3. REPOSITORY INSPECTED
+-----------------------
+Frontend:
+- package.json (Expo SDK 57, React Native 0.86, React 19.2)
+- src/constants/theme.ts, src/constants/config.ts
+- src/services/apiClient.ts, src/storage/tokenStorage.ts
+- src/screens/feed/FeedDetailsScreen.tsx, src/screens/silage/SilageDetailsScreen.tsx
+- src/navigation/types.ts, src/navigation/AppNavigator.tsx
+- node_modules/expo-camera, node_modules/expo-image-picker
+
+Backend:
+- pom.xml (Spring Boot 3.2.5, Java 17/24, Spring Security, Spring Data JPA)
+- src/main/resources/application.properties
+- src/main/java/com/cattlefeedai/api/entity/FeedSample.java
+- src/main/java/com/cattlefeedai/api/entity/SilageSample.java
+- src/main/java/com/cattlefeedai/api/controller/FeedSampleController.java
+- src/main/java/com/cattlefeedai/api/controller/SilageSampleController.java
+- src/main/java/com/cattlefeedai/api/service/assessment/VisualScreeningService.java
+- src/main/java/com/cattlefeedai/api/exception/GlobalExceptionHandler.java
+- src/main/java/com/cattlefeedai/api/security/SecurityConfig.java
+
+
+4. FILES CREATED
+----------------
+Backend:
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/SampleImage.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/SampleImageResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/repository/SampleImageRepository.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/SampleImageService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/SampleImageController.java
+- backend/cattle-feed-api/src/test/java/com/cattlefeedai/api/SampleImageServiceUnitTest.java
+
+Frontend:
+- frontend/cattle-feed-app/src/models/sampleImage.ts
+- frontend/cattle-feed-app/src/services/sampleImageService.ts
+- frontend/cattle-feed-app/src/components/SampleImageGallery.tsx
+- frontend/cattle-feed-app/src/screens/camera/CameraCaptureScreen.tsx
+- frontend/cattle-feed-app/src/screens/camera/index.ts
+- frontend/cattle-feed-app/src/__tests__/sampleImageService.test.ts
+- frontend/cattle-feed-app/src/__tests__/cameraCapture.test.ts
+- frontend/cattle-feed-app/src/__tests__/m66Navigation.test.ts
+
+Verification & Docs:
+- verify_m66_real_backend.mjs
+- docs/milestone_6_6_summary.txt
+
+
+5. FILES MODIFIED
+-----------------
+Backend:
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/exception/GlobalExceptionHandler.java
+  (Added MaxUploadSizeExceededException handling returning 400 Bad Request)
+
+Frontend:
+- frontend/cattle-feed-app/package.json
+  (Added compatible expo-camera ~57.0.5 and expo-image-picker ~57.0.20 native modules)
+- frontend/cattle-feed-app/src/models/index.ts
+  (Re-exported sampleImage models)
+- frontend/cattle-feed-app/src/services/index.ts
+  (Re-exported sampleImageService)
+- frontend/cattle-feed-app/src/services/apiClient.ts
+  (Added postForm<T> helper for multipart/form-data with automatic JWT injection)
+- frontend/cattle-feed-app/src/components/index.ts
+  (Re-exported SampleImageGallery component)
+- frontend/cattle-feed-app/src/screens/index.ts
+  (Re-exported camera screens)
+- frontend/cattle-feed-app/src/screens/feed/FeedDetailsScreen.tsx
+  (Integrated SampleImageGallery, query, and navigation)
+- frontend/cattle-feed-app/src/screens/silage/SilageDetailsScreen.tsx
+  (Integrated SampleImageGallery, query, and navigation)
+- frontend/cattle-feed-app/src/navigation/types.ts
+  (Added CameraCapture route parameters)
+- frontend/cattle-feed-app/src/navigation/AppNavigator.tsx
+  (Registered CameraCaptureScreen in Stack.Navigator)
+
+
+6. FRONTEND IMPLEMENTATION
+--------------------------
+- Expo-compatible Camera & Image Picker: Installed and configured `expo-camera` (~57.0.5) and `expo-image-picker` (~57.0.20).
+- Reusable Camera Screen (`CameraCaptureScreen.tsx`):
+  Supports both Feed and Silage samples via route parameters: `{ sampleType, sampleId, sampleCode }`.
+  Provides multi-state flow:
+  - 'CAMERA': Live camera preview (mobile CameraView or web HTML5 video stream), switch front/back camera, gallery select button, viewfinder framing guide.
+  - 'PREVIEW': Displays captured or selected image, caption/note input field, "Retake" button, "Confirm & Upload" button.
+  - 'UPLOADING': Non-blocking upload feedback with progress spinner.
+  - 'PERMISSION_DENIED': Clear explanation with permission re-request button and fallback gallery button.
+- Reusable Gallery Component (`SampleImageGallery.tsx`):
+  Integrated into both FeedDetailsScreen and SilageDetailsScreen. Displays photo count, thumbnail cards with filename, date, caption, file size, full-screen image viewer modal, and delete button with confirmation dialog.
+
+
+7. BACKEND IMPLEMENTATION
+-------------------------
+- SampleImage JPA Entity (`sample_images` table):
+  Attributes: id, feedSample (ManyToOne), silageSample (ManyToOne), originalFilename, storedFilename (unique UUID), filePath, fileReference, contentType, fileSize, caption, createdAt.
+- SampleImageService:
+  Handles secure disk storage in configured application directory (`uploads/sample-images/`), enforces maximum file size (10MB), checks allowed content types (image/jpeg, image/png, image/webp), sanitizes original filenames, generates collision-resistant UUID storage names, prevents directory traversal, and enforces farm ownership.
+- SampleImageController:
+  Exposes REST endpoints for multipart upload, image listing, single image metadata, binary file streaming, and deletion.
+
+
+8. API ENDPOINTS
+----------------
+Feed Sample Image Endpoints:
+- POST   /api/feed-samples/{feedSampleId}/images
+  Uploads photo attachment (multipart/form-data: file, optional caption). Returns 201 Created with SampleImageResponse.
+- GET    /api/feed-samples/{feedSampleId}/images
+  Lists all images attached to the feed sample. Returns 200 OK.
+- GET    /api/feed-samples/{feedSampleId}/images/{imageId}
+  Retrieves metadata for a specific feed sample image. Returns 200 OK.
+- GET    /api/feed-samples/{feedSampleId}/images/{imageId}/file
+  Streams binary image file with Content-Type header. Returns 200 OK.
+- DELETE /api/feed-samples/{feedSampleId}/images/{imageId}
+  Deletes image record and removes stored file from disk. Returns 204 No Content.
+
+Silage Sample Image Endpoints:
+- POST   /api/silage-samples/{silageSampleId}/images
+  Uploads photo attachment for silage sample. Returns 201 Created with SampleImageResponse.
+- GET    /api/silage-samples/{silageSampleId}/images
+  Lists all images attached to the silage sample. Returns 200 OK.
+- GET    /api/silage-samples/{silageSampleId}/images/{imageId}
+  Retrieves metadata for a specific silage sample image. Returns 200 OK.
+- GET    /api/silage-samples/{silageSampleId}/images/{imageId}/file
+  Streams binary image file with Content-Type header. Returns 200 OK.
+- DELETE /api/silage-samples/{silageSampleId}/images/{imageId}
+  Deletes image record and removes stored file from disk. Returns 204 No Content.
+
+
+9. IMAGE STORAGE APPROACH
+-------------------------
+- Architecture: Controlled application directory (`uploads/sample-images/`) on local filesystem.
+- Filename generation: `UUID.randomUUID().toString() + extension`. Original filenames are sanitized and stored separately in metadata for display.
+- Database: Stores file metadata and references; binary blob data is NOT stored directly in MySQL tables to prevent database bloat.
+- Reference URL: `/api/feed-samples/{id}/images/{imageId}/file` and `/api/silage-samples/{id}/images/{imageId}/file`.
+
+
+10. SECURITY
+------------
+- Authentication: All upload, list, download, and delete endpoints require a valid JWT token (Authorization: Bearer <token>). Unauthenticated requests return 401 Unauthorized.
+- Farm Ownership: Strict verification ensures the authenticated user owns the farm that owns the feed or silage sample. Farmer B cannot upload, view, or delete Farmer A's sample images (returns 403 Forbidden).
+- Path Traversal Protection: Normalized absolute paths are checked to ensure they reside strictly within the configured storage directory.
+- Denial-of-Service Protection: File size capped at 10MB; invalid content types rejected before processing.
+
+
+11. CAMERA BEHAVIOR (MOBILE)
+----------------------------
+- Uses `CameraView` from `expo-camera`.
+- Requests camera permission via `useCameraPermissions()`.
+- Supports front and back camera switching (`facing`).
+- Captures frame with `takePictureAsync({ quality: 0.85 })`.
+- Provides immediate full-screen review before upload.
+
+
+12. WEBCAM BEHAVIOR (PC / WEB)
+------------------------------
+- On Web platforms (`Platform.OS === 'web'`), accesses the browser webcam feed via standard HTML5 `navigator.mediaDevices.getUserMedia({ video: ... })`.
+- Displays real-time `<video>` preview.
+- Captures high-resolution frame via `<canvas>` element and converts to JPEG Data URL.
+- Cleans up media stream tracks immediately upon capture or unmount.
+
+
+13. GALLERY / FILE PICKER
+-------------------------
+- Provided as a seamless alternative on all platforms using `expo-image-picker` (`launchImageLibraryAsync`).
+- Accessible directly from CameraCaptureScreen ("Gallery" button) and from SampleImageGallery ("Gallery" button).
+- Enables image selection when camera permission is declined or on emulators.
+
+
+14. VALIDATION
+--------------
+- Frontend validation (`sampleImageService.validateImage`): Checks URI presence, file size <= 10MB, allowed MIME types (JPEG, PNG, WebP).
+- Backend validation (`SampleImageService.validateImageFile`): Verifies file non-empty, file size <= 10MB, allowed Content-Type headers.
+
+
+15. TESTS
+---------
+Frontend Tests (Jest):
+- `sampleImageService.test.ts` (9 tests): Validations, feed image upload/get/delete, silage image upload/get/delete, file URL generation.
+- `cameraCapture.test.ts` (5 tests): Pre-upload validation, 10MB limit check, format support, non-AI boundary verification.
+- `m66Navigation.test.ts` (5 tests): Route parameters, streaming URLs, 403 ownership error handling, 404 not found, 401 unauthorized.
+Total frontend tests: 229 passed across 25 suites (206 baseline + 23 new tests).
+
+Backend Tests (JUnit & Mockito):
+- `SampleImageServiceUnitTest.java` (9 tests):
+  - testUploadFeedSampleImage_Success
+  - testUploadFeedSampleImage_OtherFarmer_ThrowsForbidden
+  - testUploadFeedSampleImage_MissingSample_ThrowsNotFound
+  - testUploadFeedSampleImage_EmptyFile_ThrowsInvalidRequest
+  - testUploadFeedSampleImage_InvalidContentType_ThrowsInvalidRequest
+  - testUploadFeedSampleImage_OversizedFile_ThrowsInvalidRequest
+  - testGetFeedSampleImages_Success
+  - testDeleteFeedSampleImage_Success
+  - testSilageSampleImageWorkflow_Success
+Total backend tests: 20 passed (11 baseline + 9 new tests).
+
+
+16. TYPESCRIPT RESULT
+---------------------
+Command: `npm run type-check`
+Output: 0 errors. Strict TypeScript verification passed cleanly.
+
+
+17. BACKEND TEST RESULT
+-----------------------
+Command: `mvn test`
+Output: Tests run: 20, Failures: 0, Errors: 0, Skipped: 0. BUILD SUCCESS.
+
+
+18. LIVE VERIFICATION RESULT
+----------------------------
+Script: `verify_m66_real_backend.mjs`
+Target: http://localhost:8080 (live Spring Boot + MySQL)
+Results: Passed: 39/39 (100%), Failed: 0/39.
+Verified:
+- User registration and JWT authentication (Farmer A and Farmer B)
+- Farm, animal, feed sample, and silage sample creation
+- Multipart image upload for feed sample -> 201 Created
+- Feed image metadata, listing, and binary file streaming
+- Multipart image upload for silage sample -> 201 Created
+- Silage image listing and binary file streaming
+- Feed and silage image deletion -> 204 No Content
+- Unauthorized request rejection -> 401 Unauthorized
+- Cross-user upload and listing rejection -> 403 Forbidden
+- Nonexistent sample rejection -> 404 Not Found
+- Invalid content type and empty file rejection -> 400 Bad Request
+
+
+19. REGRESSION RESULT
+---------------------
+- M6.3 Live Regression (`verify_m63_real_backend.mjs`): 18/18 steps passed.
+- M6.4 Live Regression (`verify_m64_real_backend.mjs`): 50/50 steps passed.
+- M6.5 Live Regression (`verify_m65_real_backend.mjs`): 36/36 steps passed.
+- All existing tests (M6.1 - M6.5) continue to pass without regression.
+
+
+20. KNOWN LIMITATIONS
+---------------------
+- Images are currently stored on the local application server storage volume (`uploads/sample-images/`).
+  Cloud object storage (AWS S3, Google Cloud Storage, or Azure Blob) will be configured in future cloud deployment milestones.
+- Webcam on PC browsers requires HTTPS or localhost for browser media device security permissions.
+
+
+21. SCIENTIFIC BOUNDARIES
+-------------------------
+- M6.6 strictly performs image capture, storage, and reference handling.
+- ZERO computer vision or AI inference is executed in M6.6.
+- ZERO chemical parameters (protein, moisture, aflatoxin, fiber, pH) are predicted from images.
+- ZERO disease diagnoses are performed.
+
+
+22. SCOPE DEFERRED TO M7
+------------------------
+- M7.1 AI Service Foundation (Python FastAPI / PyTorch microservice).
+- M7.2 Computer Vision Models (surface mould detection, discoloration, foreign material screening).
+- M7.3 Visual Screening Integration (`POST /api/assessments/visual-screening`).
+
+M6.6 performs image capture/storage/reference handling only.
+AI/CV analysis is deferred to M7.
+
+================================================================================
+END OF SUMMARY
+================================================================================

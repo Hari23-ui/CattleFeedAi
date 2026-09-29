@@ -1,0 +1,420 @@
+================================================================================
+CattleFeedAI — Milestone 6.5: Animal Health Risk Screening Frontend Summary
+================================================================================
+
+1. FILES INSPECTED
+------------------
+Backend Controllers, Services, DTOs, Entities, Repositories & Rules:
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AssessmentController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AdvisoryController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AnimalController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/FeedSampleController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/SilageSampleController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/TestResultController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/AnimalHealthScreeningService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/RiskAssessmentService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/QualityAssessmentService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/AdvisoryService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/AnimalHealthScreeningResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/RiskIndicatorDto.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/AdvisoryResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/animal/AnimalResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/Animal.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/HealthObservation.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/HealthRisk.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/HealthScreeningStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/AppetiteStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/MilkProductionStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/ActivityStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/repository/HealthObservationRepository.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/repository/HealthRiskRepository.java
+
+Frontend Files Inspected & Reused:
+- frontend/cattle-feed-app/src/constants/theme.ts
+- frontend/cattle-feed-app/src/services/apiClient.ts
+- frontend/cattle-feed-app/src/components/AppCard.tsx
+- frontend/cattle-feed-app/src/components/AppButton.tsx
+- frontend/cattle-feed-app/src/components/ScreenContainer.tsx
+- frontend/cattle-feed-app/src/components/LoadingView.tsx
+- frontend/cattle-feed-app/src/components/ErrorMessage.tsx
+- frontend/cattle-feed-app/src/components/RiskIndicatorCard.tsx
+- frontend/cattle-feed-app/src/screens/animals/AnimalDetailsScreen.tsx
+- frontend/cattle-feed-app/src/screens/assessments/AssessmentResultScreen.tsx
+- frontend/cattle-feed-app/src/screens/advisories/AdvisoryDetailsScreen.tsx
+- frontend/cattle-feed-app/src/navigation/types.ts
+- frontend/cattle-feed-app/src/navigation/AppNavigator.tsx
+- frontend/cattle-feed-app/src/utils/errorHandler.ts
+
+
+2. ACTUAL HEALTH-RELATED BACKEND ARCHITECTURE
+---------------------------------------------
+The Spring Boot backend architecture decouples diagnostic veterinary practice from feed/nutritional risk screening:
+1. AnimalHealthScreeningService.screenAnimalHealth(Long animalId) serves as the centralized screening engine.
+2. Ownership is strictly verified: The animal must belong to a farm owned by the authenticated JWT user.
+3. Multi-source data synthesis:
+   - Animal profile: Lactation stage (EARLY, MID, LATE, DRY), days in milk, milk production per day, feed intake status.
+   - Feed & Silage history: Queries all feed and silage samples tied to the animal via FeedSampleRepository and SilageSampleRepository.
+   - Lab/Sensor Test Results: Retrieves test results for each sample (moisture, crude protein, aflatoxin, mould, spoilage, etc.).
+   - Health Observations: Queries HealthObservationRepository for recent observations recorded for the animal.
+4. Non-Diagnostic Screening Rules:
+   - Nutritional demand check: If an animal is in EARLY or MID lactation yielding >= 12.0 L/day, feed with crude protein < 16.0% triggers a Nutritional Risk indicator (Severity: WARNING).
+   - Contamination & Feed Intake check: If feed moisture > 14.0% or mould/spoilage is detected, and animal feed intake is REDUCED, a Contamination Exposure Risk indicator is triggered (Severity: HIGH).
+5. Output Classification:
+   - INSUFFICIENT_DATA: Missing feed samples, test results, or animal parameters. Returns a detailed missingInformation list.
+   - POTENTIAL_CONCERN: Feed/nutritional/storage risks identified. Persists HealthRisk records and returns detectedRisks.
+   - HEALTHY_NO_RISK_DETECTED: Feed testing data present and within acceptable thresholds for the animal's profile.
+6. Non-Diagnostic Terminology & Legal Disclaimer:
+   - Every response includes an official disclaimer: "This is a screening tool and does not provide a veterinary diagnosis. Consult a qualified veterinarian or veterinary nutritionist for clinical assessment."
+
+
+3. ACTUAL ENDPOINTS DISCOVERED
+------------------------------
+Animal Health Screening (AssessmentController):
+- GET  /api/assessments/animals/{animalId}/health-screening
+  Executes animal health screening, synthesizes animal profile with feed/silage history and test results, generates/persists health risks, and returns AnimalHealthScreeningResponse.
+
+Supporting Animal-Linked Endpoints:
+- GET  /api/animals/{id}
+  Retrieves animal profile details.
+- GET  /api/feed-samples?animalId={id}
+  Retrieves feed samples associated with the animal.
+- GET  /api/silage-samples?animalId={id}
+  Retrieves silage samples associated with the animal.
+- GET  /api/test-results/feed-sample/{feedSampleId}
+  Retrieves lab and sensor test results for a feed sample.
+- GET  /api/test-results/silage-sample/{silageSampleId}
+  Retrieves test results for a silage sample.
+- GET  /api/advisories?animalId={id}
+  Retrieves persisted herd advisories generated for the animal.
+- GET  /api/assessments/feed-samples/{feedSampleId}
+  Retrieves quality assessment for a feed sample.
+- GET  /api/assessments/silage-samples/{silageSampleId}
+  Retrieves quality assessment for a silage sample.
+
+
+4. ACTUAL DTOS / ENUMS DISCOVERED
+---------------------------------
+AnimalHealthScreeningResponse:
+  - animalId: Long
+  - animalTag: String
+  - screeningStatus: HealthScreeningStatus ('HEALTHY_NO_RISK_DETECTED', 'POTENTIAL_CONCERN', 'INSUFFICIENT_DATA')
+  - missingInformation: List<String>
+  - detectedRisks: List<RiskIndicatorDto>
+  - recentObservationsCount: int
+  - recentTestResultsCount: int
+  - dietaryAndHealthSummary: String
+  - recommendationSummary: String
+  - screeningTimestamp: LocalDateTime
+  - disclaimer: String
+
+RiskIndicatorDto:
+  - category: RiskCategory ('CONTAMINATION_RISK', 'NUTRITIONAL_RISK', 'STORAGE_SPOILAGE_RISK')
+  - severity: Severity ('LOW', 'WARNING', 'HIGH', 'CRITICAL')
+  - title: String
+  - description: String
+  - recommendation: String
+  - parameter: AssessmentParameter
+
+Enums:
+  - HealthScreeningStatus: HEALTHY_NO_RISK_DETECTED, POTENTIAL_CONCERN, INSUFFICIENT_DATA
+  - AppetiteStatus: NORMAL, REDUCED, SEVERELY_REDUCED, INCREASED
+  - MilkProductionStatus: STABLE, SLIGHT_DROP, SIGNIFICANT_DROP, INCREASED
+  - ActivityStatus: NORMAL, LETHARGIC, RESTLESS, DOWN
+
+
+5. WHETHER DEDICATED HEALTH SCREENING API EXISTS
+------------------------------------------------
+YES. The backend provides a dedicated endpoint:
+GET /api/assessments/animals/{animalId}/health-screening
+This endpoint is live in AssessmentController.java and powered by AnimalHealthScreeningService.java.
+
+Architecture Note on Health Observations & Health Risks:
+HealthObservation and HealthRisk exist as JPA entities in the database with repositories (HealthObservationRepository, HealthRiskRepository), but the backend does not expose separate CRUD REST controllers for them. Instead, screening evaluation, observation counts, and health risk persistence are encapsulated inside the GET /api/assessments/animals/{animalId}/health-screening workflow. The frontend respects this architecture and does not create mock or non-existent endpoints.
+
+
+6. FILES CREATED
+----------------
+1. frontend/cattle-feed-app/src/models/animalHealth.ts
+   TypeScript interfaces for HealthScreeningStatus, AnimalHealthScreeningResponse, HealthObservation, HealthRiskRecord, and observation enums.
+2. frontend/cattle-feed-app/src/services/animalHealthService.ts
+   API service methods for health screening, animal-associated feed/silage queries, and advisory retrieval.
+3. frontend/cattle-feed-app/src/screens/health/AnimalHealthScreeningScreen.tsx
+   Comprehensive farmer-facing screening screen displaying animal demographics, screening status, dietary/health summaries, missing data alerts, detected risks, feed/silage history, advisories, and the screening disclaimer.
+4. frontend/cattle-feed-app/src/screens/health/index.ts
+   Screen exports.
+5. frontend/cattle-feed-app/src/__tests__/animalHealthService.test.ts
+   Unit tests for animalHealthService (9 tests).
+6. frontend/cattle-feed-app/src/__tests__/animalHealthScreening.test.ts
+   UI presentation and non-diagnostic rule compliance tests (8 tests).
+7. frontend/cattle-feed-app/src/__tests__/m65Navigation.test.ts
+   Navigation route registration and parameter validation tests (9 tests).
+8. verify_m65_real_backend.mjs
+   Automated end-to-end verification script against live Spring Boot API (36 verification steps).
+9. docs/milestone_6_5_summary.txt
+   Milestone 6.5 completion report.
+
+
+7. FILES MODIFIED
+-----------------
+1. frontend/cattle-feed-app/src/models/index.ts
+   Re-exported all animal health models.
+2. frontend/cattle-feed-app/src/services/index.ts
+   Re-exported animalHealthService.
+3. frontend/cattle-feed-app/src/screens/index.ts
+   Re-exported AnimalHealthScreeningScreen.
+4. frontend/cattle-feed-app/src/screens/animals/AnimalDetailsScreen.tsx
+   Added "🩺 Health Risk Screening" action button in the actions card.
+5. frontend/cattle-feed-app/src/navigation/types.ts
+   Added AnimalHealthScreening: { animalId: number } to RootStackParamList.
+6. frontend/cattle-feed-app/src/navigation/AppNavigator.tsx
+   Registered AnimalHealthScreeningScreen in Stack.Navigator.
+
+
+8. MODELS
+---------
+Defined in `src/models/animalHealth.ts`:
+- HealthScreeningStatus: 'HEALTHY_NO_RISK_DETECTED' | 'POTENTIAL_CONCERN' | 'INSUFFICIENT_DATA'
+- AnimalHealthScreeningResponse: Comprehensive response from backend screening engine.
+- AppetiteStatus: 'NORMAL' | 'REDUCED' | 'SEVERELY_REDUCED' | 'INCREASED'
+- MilkProductionStatus: 'STABLE' | 'SLIGHT_DROP' | 'SIGNIFICANT_DROP' | 'INCREASED'
+- ActivityStatus: 'NORMAL' | 'LETHARGIC' | 'RESTLESS' | 'DOWN'
+- HealthObservation: DTO structure representing observation records.
+- HealthRiskRecord: DTO structure representing persisted health risk records.
+
+
+9. SERVICES
+-----------
+Defined in `src/services/animalHealthService.ts`:
+- screenAnimalHealth(animalId: number): Promise<AnimalHealthScreeningResponse>
+  Calls GET /api/assessments/animals/{animalId}/health-screening.
+- getAnimalFeedSamples(animalId: number): Promise<FeedSampleResponse[]>
+  Calls GET /api/feed-samples?animalId={animalId}.
+- getAnimalSilageSamples(animalId: number): Promise<SilageSampleResponse[]>
+  Calls GET /api/silage-samples?animalId={animalId}.
+- getAnimalAdvisories(animalId: number): Promise<AdvisoryResponse[]>
+  Calls GET /api/advisories?animalId={animalId}.
+- getFeedTestResults(feedSampleId: number): Promise<TestResultResponse[]>
+  Calls GET /api/test-results/feed-sample/{feedSampleId}.
+- getSilageTestResults(silageSampleId: number): Promise<TestResultResponse[]>
+  Calls GET /api/test-results/silage-sample/{silageSampleId}.
+
+
+10. HEALTH OBSERVATION UI
+-------------------------
+- The health screening screen incorporates health observations directly from the backend screening response (recentObservationsCount).
+- When observations are present, the count and summary are displayed.
+- When no observations are recorded, a clear guidance message is presented: "No health observations recorded yet. Routine monitoring of appetite, activity, and digestive signs is recommended."
+- Avoids fake CRUD screens or unbacked API endpoints, preserving strict backend consistency.
+
+
+11. ANIMAL HEALTH SCREENING UI
+------------------------------
+Screen structure in `AnimalHealthScreeningScreen.tsx`:
+1. Animal Profile Banner: Tag, Name, Breed, Lactation Stage, Daily Milk Yield, Weight, Feed Intake Status.
+2. Screening Outcome Badge: Color-coded card (Green for Healthy, Amber for Potential Concern, Blue for Insufficient Data) with status explanation.
+3. Dietary & Health Summary: Contextual overview synthesized by the backend.
+4. Recommended Next Action: Practical non-medical recommendations (e.g. consult veterinarian / veterinary nutritionist).
+5. Missing Information Card: Displayed when status is INSUFFICIENT_DATA, listing bulleted items needed for complete screening.
+6. Detected Risk Indicators: Renders backend risk indicators using the reusable M6.4 RiskIndicatorCard.
+7. Feed & Silage History: Displays linked feed and silage samples with direct navigation buttons.
+8. Herd Advisories: Displays active advisories for this animal with priority badges and navigation to AdvisoryDetails.
+9. Screening History & Observation Summary: Summarizes recent tests and observation counts.
+10. Legal Non-Diagnostic Disclaimer: High-visibility card highlighting screening boundaries.
+
+
+12. FEED/SILAGE HISTORY INTEGRATION
+-----------------------------------
+- Fetches all feed and silage samples tied to the animal via getAnimalFeedSamples and getAnimalSilageSamples.
+- Lists sample codes, collection dates, and silage/feed types.
+- Provides "View Feed Details" and "View Silage Details" buttons that navigate seamlessly to FeedDetailsScreen and SilageDetailsScreen.
+
+
+13. RISK INTEGRATION
+--------------------
+- Directly renders backend-detected risks using RiskIndicatorCard from M6.4.
+- Maps categories (Nutritional Risk, Contamination Risk, Storage/Spoilage Risk) and severities (LOW, WARNING, HIGH, CRITICAL).
+- Zero frontend recalculation or threshold comparison.
+
+
+14. ADVISORY INTEGRATION
+------------------------
+- Queries all active advisories for the animal via GET /api/advisories?animalId={id}.
+- Displays advisory title, category, priority badge, creation date, and unread indicator.
+- Clicking an advisory navigates to AdvisoryDetailsScreen, reusing the complete M6.4 advisory workflow.
+
+
+15. NAVIGATION CHANGES
+----------------------
+- RootStackParamList updated with:
+  AnimalHealthScreening: { animalId: number }
+- Registered AnimalHealthScreeningScreen in AppNavigator.tsx.
+- AnimalDetailsScreen updated with "🩺 Health Risk Screening" action button in the actions card.
+- Outbound navigation supported from screening screen to:
+  - FeedDetails ({ sampleId })
+  - SilageDetails ({ sampleId })
+  - AdvisoryDetails ({ advisoryId })
+
+
+16. ERROR HANDLING
+------------------
+- Full LoadingView during data fetching.
+- Full ErrorMessage on failure with retry button.
+- Comprehensive HTTP status handling:
+  - 400 Bad Request
+  - 401 Unauthorized
+  - 403 Forbidden (cross-user farm ownership access attempt)
+  - 404 Not Found (animal does not exist)
+  - 500 / Network timeout
+- Employs getFarmerFriendlyErrorMessage; zero SQL errors, stack traces, or JWT tokens exposed.
+
+
+17. SECURITY / OWNERSHIP VERIFICATION
+-------------------------------------
+- Farm ownership is authoritative and enforced by the backend on every request.
+- Verified in live testing:
+  - Farmer A accessing own animal -> 200 OK.
+  - Farmer B accessing Farmer A's animal -> 403 Forbidden.
+  - Request without JWT token -> 401 Unauthorized.
+  - Request for non-existent animal -> 404 Not Found.
+
+
+18. NO-DIAGNOSIS VERIFICATION
+-----------------------------
+- Strict compliance with non-diagnostic boundaries:
+  - ZERO disease claims ("cow has disease X", "diagnosed with", "definitely sick").
+  - ZERO disease names in frontend decision logic (no "mastitis", "ketosis", "acidosis", "aflatoxicosis").
+  - ZERO frontend scientific threshold comparisons (no numeric < or > checks for aflatoxin, moisture, crude protein, etc.).
+- Permitted non-diagnostic screening language used throughout:
+  - "Potential Risk"
+  - "Possible Feed-Related Concern"
+  - "Potential Nutritional Concern"
+  - "Risk Indicator"
+  - "Further assessment recommended"
+  - "Consult a veterinarian / veterinary nutritionist"
+- Prominent screening disclaimer displayed on the screen and verified in automated tests.
+
+
+19. TESTS ADDED
+---------------
+Added 26 new automated unit and integration tests across 3 test files:
+- src/__tests__/animalHealthService.test.ts (9 tests)
+  - Calls GET /api/assessments/animals/:id/health-screening with correct URL
+  - Returns POTENTIAL_CONCERN response correctly
+  - Returns INSUFFICIENT_DATA response with missing information list
+  - Returns HEALTHY_NO_RISK_DETECTED response correctly
+  - Calls GET /api/feed-samples?animalId=:id
+  - Calls GET /api/silage-samples?animalId=:id
+  - Calls GET /api/advisories?animalId=:id
+  - Calls GET /api/test-results/feed-sample/:id
+  - Calls GET /api/test-results/silage-sample/:id
+- src/__tests__/animalHealthScreening.test.ts (8 tests)
+  - Uses non-diagnostic terminology for all screening statuses
+  - Formats detected risk indicators into non-diagnostic warning cards
+  - Displays missing information list when status is INSUFFICIENT_DATA
+  - Never generates diagnostic disease claims
+  - Does not contain medical or veterinary threshold comparison logic
+  - Correctly categorizes nutritional, contamination, and storage risks
+  - Displays legal non-diagnostic screening disclaimer
+  - Renders recent feed, silage, and advisory links
+- src/__tests__/m65Navigation.test.ts (9 tests)
+  - AnimalHealthScreening route is registered in navigation types
+  - AnimalDetailsScreen provides navigation to AnimalHealthScreening
+  - AnimalHealthScreening accepts animalId parameter
+  - Provides navigation to FeedDetails from feed history
+  - Provides navigation to SilageDetails from silage history
+  - Provides navigation to AdvisoryDetails from advisories section
+  - ScreenContainer, LoadingView, and ErrorMessage are used
+  - Handles 403 Forbidden without breaking navigation state
+  - Handles 404 Not Found without breaking navigation state
+
+
+20. TYPESCRIPT RESULT
+---------------------
+`npm run type-check`
+Output: 0 errors
+All TypeScript files pass strict type checking with zero compiler errors.
+
+
+21. JEST RESULT
+---------------
+`npm test -- --runInBand`
+Output:
+Test Suites: 22 passed, 22 total
+Tests:       206 passed, 206 total
+Snapshots:   0 total
+Time:        2.287 s
+Baseline was 180/180 tests passing; final is 206/206 tests passing (26 new tests, 0 regressions).
+
+
+22. LIVE BACKEND VERIFICATION RESULT
+------------------------------------
+`node verify_m65_real_backend.mjs` against live Spring Boot on http://localhost:8080:
+Output:
+===============================================================
+M6.5 LIVE BACKEND VERIFICATION COMPLETE:
+Passed: 36/36
+Failed: 0/36
+===============================================================
+
+Verified sequence:
+- User registration and JWT authentication (Farmer A and Farmer B)
+- Farm and Animal creation (Animal 1: High Yield Early Lactation, Animal 2: Insufficient Data)
+- Animal profile retrieval
+- Health screening for Animal 2 -> INSUFFICIENT_DATA status, 0 risks, missingInformation populated, disclaimer present
+- Feed sample and test result creation for Animal 1
+- Feed quality assessment (UNSAFE) and risk assessment (HIGH)
+- Advisory generation for Animal 1 via POST /api/assessments/test-results/:id
+- Health screening for Animal 1 -> POTENTIAL_CONCERN status, 2 detected risks, dietaryAndHealthSummary present
+- Verification: 0 diagnostic disease claims in screening response
+- Verification: Only non-diagnostic screening terminology used
+- Feed samples queried via GET /api/feed-samples?animalId=:id
+- Silage samples queried via GET /api/silage-samples?animalId=:id
+- Herd advisories queried via GET /api/advisories?animalId=:id
+- Unauthorized request rejection without JWT (401)
+- Cross-user ownership enforcement (Farmer B accessing Animal 1 returns 403 Forbidden)
+- Nonexistent animal health screening rejection (404)
+
+Regression Verification:
+- `node verify_m64_real_backend.mjs`: 50/50 steps passed.
+- `node verify_m63_real_backend.mjs`: 18/18 steps passed.
+
+
+23. WARNINGS / ERRORS
+---------------------
+None. Zero compile errors, zero runtime errors, zero linter warnings.
+
+
+24. CONFIRMATION BACKEND UNCHANGED
+----------------------------------
+Confirmed: 0 files modified in `backend/cattle-feed-api`. Backend code remains 100% untouched.
+
+
+25. CONFIRMATION DATABASE UNCHANGED
+-----------------------------------
+Confirmed: 0 schema migrations or modifications performed on MySQL database `cattlefeedai`.
+
+
+26. CONFIRMATION JWT / SECURITY UNCHANGED
+-----------------------------------------
+Confirmed: Security filter chain, JWT authentication, and user ownership validation remain unmodified.
+
+
+27. CONFIRMATION NO FAKE PRODUCTION DATA
+----------------------------------------
+Confirmed: All displayed data is fetched from real Spring Boot endpoints and MySQL database records.
+
+
+28. EXACT SCOPE BOUNDARY
+------------------------
+Milestone 6.5 is complete. In strict adherence to project guidelines, development STOPPED at this milestone:
+- M6.6 Camera / Webcam Capture: NOT implemented (remains for M6.6)
+- M7 AI / Computer Vision: NOT implemented
+- M8 Expert Consultation: NOT implemented
+- M9 Analytics: NOT implemented
+- M10 IoT / NIR: NOT implemented
+- M11 Offline / Multilingual: NOT implemented
+- M12 Final Demo: NOT implemented
+
+================================================================================
+END OF SUMMARY
+================================================================================

@@ -1,0 +1,261 @@
+================================================================================
+CattleFeedAI — Milestone 5: Quality Assessment & Advisory Engine Summary Report
+================================================================================
+Generated Date : 2026-09-26
+Module         : Quality Assessment, Risk Screening & Advisory Engine
+Status         : COMPLETED & VERIFIED (195/195 Tests Passing)
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & OBJECTIVES ACHIEVED
+--------------------------------------------------------------------------------
+Milestone 5 builds the core decision-support foundation of CattleFeedAI. It transforms raw chemical and physical feed/silage test results into:
+  1. Quality Assessment: Objective parameter-by-parameter evaluation against baseline standards.
+  2. Risk Assessment: Non-diagnostic risk indicator categorization (contamination, nutritional imbalances, storage/spoilage).
+  3. Rule-Based Advisory Engine: Generation of actionable management recommendations and mitigation steps.
+  4. Animal Health Risk Screening: Multi-factor correlation connecting animal performance (milk yield, lactation stage), feed quality history, and daily logged health observations.
+  5. Computer Vision & Webcam Preparation: Secure ingestion endpoint for image-based visual quality screening without making unverified chemical assertions.
+
+All 15 existing database tables and entities were preserved with zero breaking schema modifications. Existing farm/animal/sample ownership rules and JWT authentication were strictly adhered to.
+
+--------------------------------------------------------------------------------
+2. ARCHITECTURAL DESIGN & COMPLETE ASSESSMENT FLOW
+--------------------------------------------------------------------------------
+Assessment Flow:
+  [FeedSample / SilageSample]
+          │
+          ▼
+     [TestResult] (Lab, NIR, Rapid Kit, or Webcam Image)
+          │
+          ├──► RuleEngineService (RuleRegistry with configurable rules)
+          │         │
+          │         ▼
+          ├──► QualityAssessmentService
+          │         │  - Evaluates 11 parameters (Moisture, Protein, Fiber, Energy,
+          │         │    Aflatoxin, Mycotoxin, pH, Minerals, Adulteration, Mould, Spoilage)
+          │         │  - Handles NULL values as "NOT_AVAILABLE" (not 0, not automatic fail)
+          │         │  - Produces QualityStatus (GOOD, ACCEPTABLE, NEEDS_ATTENTION, UNSAFE, INSUFFICIENT_DATA)
+          │         │
+          │         ▼
+          ├──► RiskAssessmentService
+          │         │  - Categorizes into Contamination, Nutritional, and Storage risks
+          │         │  - Uses strictly non-diagnostic language:
+          │         │    "Potential Risk", "Risk Indicator", "Possible Feed-Related Concern"
+          │         │  - Assigns severity (NORMAL, INFO, WARNING, HIGH, CRITICAL)
+          │         │
+          │         ▼
+          └──► AdvisoryService
+                    │  - Translates detected risk indicators into prioritized advisories
+                    │  - Priority mapping: CRITICAL/HIGH -> HIGH; WARNING -> MEDIUM; INFO/NORMAL -> LOW
+                    │  - Category mapping: FEED, SILAGE, NUTRITION, CONTAMINATION, STORAGE, HEALTH_SCREENING
+                    │  - Automatically persists to 'advisories' table when animal is linked
+                    │  - Provides read/unread tracking and farmer ownership boundaries
+
+Animal Health Screening Flow:
+  [Animal Profile] + [Feed/Silage Test History] + [Health Observations]
+          │
+          ▼
+  AnimalHealthScreeningService
+          │  - High-producing lactation (Early/Mid, >12 L/day) + Low Protein (<16%) -> Protein Deficit Risk
+          │  - Reduced Appetite/Feed Intake + High Moisture (>14%) or Mould -> Feed Quality Concern
+          │  - Milk Production Drop (REDUCED) -> Production Warning
+          │  - Missing data -> Returns status "INSUFFICIENT_DATA" with missing fields explained
+          │  - Persists risk alerts to 'health_risks' table
+
+Visual Screening / Computer Vision Flow:
+  [Webcam Snapshot / External AI CV Service]
+          │
+          ▼
+  POST /api/assessments/visual-screening
+          │  - Ingests image reference, mould/spoilage indications, visible foreign material, confidence score
+          │  - Persists TestResult with AnalysisSource.IMAGE (chemical parameters kept null)
+          │  - Enforces explicit disclaimer: VISUAL SCREENING ONLY (cannot measure protein, moisture %, aflatoxin)
+
+--------------------------------------------------------------------------------
+3. FILES CREATED & MODIFIED
+--------------------------------------------------------------------------------
+A. Enums Created / Modified:
+  - Created:  QualityStatus.java (GOOD, ACCEPTABLE, NEEDS_ATTENTION, UNSAFE, INSUFFICIENT_DATA)
+  - Created:  AssessmentParameter.java (MOISTURE, CRUDE_PROTEIN, FIBER, ENERGY_VALUE, AFLATOXIN, MYCOTOXIN, PH, MINERAL_STATUS, ADULTERATION, MOULD, SPOILAGE)
+  - Created:  ComparisonOperator.java (GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, EQUALS, NOT_EQUALS)
+  - Created:  AdvisoryCategory.java (FEED, SILAGE, NUTRITION, CONTAMINATION, STORAGE, HEALTH_SCREENING, EXPERT_CONSULTATION)
+  - Modified: Severity.java (added NORMAL and HIGH to complete INFO, NORMAL, WARNING, HIGH, CRITICAL)
+
+B. Rule Engine Models & Core Services:
+  - Created:  com.cattlefeedai.api.model.AssessmentRule.java
+  - Created:  com.cattlefeedai.api.model.RuleEvaluationResult.java
+  - Created:  com.cattlefeedai.api.service.rule.RuleRegistry.java (9 configurable rules with placeholder thresholds)
+  - Created:  com.cattlefeedai.api.service.rule.RuleEngineService.java
+
+C. Assessment & Advisory Services:
+  - Created:  com.cattlefeedai.api.service.assessment.QualityAssessmentService.java
+  - Created:  com.cattlefeedai.api.service.assessment.RiskAssessmentService.java
+  - Created:  com.cattlefeedai.api.service.assessment.AdvisoryService.java
+  - Created:  com.cattlefeedai.api.service.assessment.AnimalHealthScreeningService.java
+  - Created:  com.cattlefeedai.api.service.assessment.VisualScreeningService.java
+
+D. Data Transfer Objects (DTOs):
+  - Created:  com.cattlefeedai.api.dto.assessment.ParameterAssessmentDto.java
+  - Created:  com.cattlefeedai.api.dto.assessment.QualityAssessmentResponse.java
+  - Created:  com.cattlefeedai.api.dto.assessment.RiskIndicatorDto.java
+  - Created:  com.cattlefeedai.api.dto.assessment.RiskAssessmentResponse.java
+  - Created:  com.cattlefeedai.api.dto.assessment.AdvisoryResponse.java
+  - Created:  com.cattlefeedai.api.dto.assessment.AnimalHealthScreeningResponse.java
+  - Created:  com.cattlefeedai.api.dto.assessment.VisualScreeningRequest.java
+  - Created:  com.cattlefeedai.api.dto.assessment.VisualScreeningResponse.java
+  - Created:  com.cattlefeedai.api.dto.assessment.AssessmentSummaryResponse.java
+
+E. REST Controllers:
+  - Created:  com.cattlefeedai.api.controller.AssessmentController.java
+  - Created:  com.cattlefeedai.api.controller.AdvisoryController.java
+
+F. Repositories Updated:
+  - Modified: AdvisoryRepository.java (added findByAnimalFarmOwnerId and findByAnimalFarmOwnerIdAndIsRead)
+  - Modified: HealthRiskRepository.java (added findByAnimalFarmOwnerId)
+
+G. Test Suites:
+  - Created:  src/test/java/com/cattlefeedai/api/AssessmentEngineUnitTest.java (11 JUnit 5 test cases)
+  - Created:  test_assessment_engine.ps1 (62 comprehensive integration tests)
+
+--------------------------------------------------------------------------------
+4. REST API ENDPOINTS DELIVERED
+--------------------------------------------------------------------------------
+1. Quality Assessment:
+   - GET /api/assessments/test-results/{testResultId}
+     Returns structured quality assessment with parameter details, triggered rules, and overall quality status.
+   - GET /api/assessments/feed-samples/{feedSampleId}
+     Returns quality assessment on latest test result of a feed sample.
+   - GET /api/assessments/silage-samples/{silageSampleId}
+     Returns quality assessment on latest test result of a silage sample.
+
+2. Risk Assessment:
+   - GET /api/assessments/test-results/{testResultId}/risk
+     Returns non-diagnostic risk screening separating contamination, nutritional, and storage risks.
+
+3. Complete Assessment & Advisory Generation:
+   - POST /api/assessments/test-results/{testResultId}
+     Evaluates quality + risk, generates prioritized advisories, and persists advisories if animal is linked.
+
+4. Animal Health Screening:
+   - GET /api/assessments/animals/{animalId}/health-screening
+     Non-diagnostic screening correlating animal profile, feed test history, and health observations.
+     Returns INSUFFICIENT_DATA if missing records.
+
+5. Visual Screening Ingestion (Webcam / Computer Vision):
+   - POST /api/assessments/visual-screening
+     Receives image reference, mould/spoilage flags, foreign material, and confidence score.
+     Creates a TestResult with AnalysisSource.IMAGE and returns VISUAL_SCREENING_ONLY confirmation.
+
+6. Advisory Management:
+   - GET /api/advisories (optional params: animalId, isRead)
+     Retrieves advisories scoped to authenticated farmer's farms or all for ADMIN.
+   - GET /api/advisories/{id}
+     Retrieves a single advisory by ID with ownership enforcement.
+   - PUT /api/advisories/{id}/read
+     Marks an advisory as read.
+
+--------------------------------------------------------------------------------
+5. DATABASE USAGE & INTEGRITY
+--------------------------------------------------------------------------------
+- No schema alterations or migrations required.
+- The existing MySQL schema (15 tables) was reused 100%:
+  - test_results: Stores physical, chemical, and visual screening results.
+  - advisories: Stores generated recommendations linked to animal and farm.
+  - health_risks: Stores non-diagnostic animal health screening alerts.
+  - health_observations: Correlated for animal intake and milk drop patterns.
+  - animals, farms, users: Used for strict multi-tenant ownership enforcement.
+
+--------------------------------------------------------------------------------
+6. PLACEHOLDER THRESHOLD REGISTRY & CALIBRATION NOTICE
+--------------------------------------------------------------------------------
+IMPORTANT: As mandated by specification, NO scientific thresholds were hardcoded into business logic.
+All default thresholds reside in the configurable RuleRegistry and are explicitly marked with:
+"PLACEHOLDER THRESHOLD: Requires scientific calibration from agricultural/animal-nutrition sources."
+
+Currently Configured Architecture Baseline Rules:
+1. RULE_FEED_MOISTURE_HIGH:
+   - Parameter: MOISTURE > 14.0%
+   - Severity: WARNING | Category: STORAGE
+   - Status: Needs ICAR/NDDB regional standard calibration.
+2. RULE_FEED_PROTEIN_LOW:
+   - Parameter: CRUDE_PROTEIN < 16.0%
+   - Severity: WARNING | Category: NUTRITION
+   - Status: Needs dairy cattle concentrate feed calibration.
+3. RULE_FEED_AFLATOXIN_CRITICAL:
+   - Parameter: AFLATOXIN > 20.0 ppb
+   - Severity: CRITICAL | Category: CONTAMINATION
+   - Status: Needs FSSAI/ICAR statutory threshold verification.
+4. RULE_FEED_MYCOTOXIN_HIGH:
+   - Parameter: MYCOTOXIN > 50.0 ppb
+   - Severity: HIGH | Category: CONTAMINATION
+   - Status: Needs scientific calibration.
+5. RULE_SILAGE_PH_HIGH:
+   - Parameter: PH > 4.5
+   - Severity: WARNING | Category: SILAGE
+   - Status: Typical fermented corn/sorghum silage benchmark.
+6. RULE_SILAGE_MOISTURE_HIGH:
+   - Parameter: MOISTURE > 72.0%
+   - Severity: WARNING | Category: SILAGE
+   - Status: Clostridial fermentation risk placeholder.
+7. RULE_FEED_MOULD_DETECTED:
+   - Parameter: MOULD == true
+   - Severity: HIGH | Category: CONTAMINATION / STORAGE
+8. RULE_FEED_ADULTERATION_DETECTED:
+   - Parameter: ADULTERATION != null and != "NONE"
+   - Severity: CRITICAL | Category: CONTAMINATION
+9. RULE_FEED_FIBER_HIGH:
+   - Parameter: FIBER > 22.0%
+   - Severity: INFO | Category: NUTRITION
+
+Rule thresholds can be updated dynamically via RuleRegistry.updateRuleThreshold(ruleCode, newThreshold)
+without modifying any application or assessment service code.
+
+--------------------------------------------------------------------------------
+7. TEST SUITE RESULTS
+--------------------------------------------------------------------------------
+A. JUnit 5 Maven Test Suite:
+   - Command: mvn test
+   - Tests Executed : 11
+   - Passed         : 11
+   - Failed         : 0
+   - Execution Time : 14.63s
+   - Areas Covered  : Clean feed evaluation, critical multiple rules, null parameter handling (not treated as 0 or failed), silage rules, non-diagnostic terminology assertions, insufficient data handling, health screening multi-factor correlation, visual screening ingestion payload, advisory priority mapping, and dynamic rule registry threshold updates.
+
+B. Milestone 5 PowerShell Integration Test Suite:
+   - Script: test_assessment_engine.ps1
+   - Tests Executed : 62
+   - Passed         : 62
+   - Failed         : 0
+   - Areas Covered  : User registration (Farmer A, B, Admin), JWT authentication, farm/animal creation, clean & hazard feed test results, all-null test results, silage test results, Quality Assessment endpoints, Risk Assessment layers, complete evaluation & advisory persistence, advisory query & mark as read, animal health risk screening, webcam/visual screening ingestion, cross-farmer 403 Forbidden checks, 401 unauthenticated checks, 404 not found checks, and Admin multi-farm visibility.
+
+C. Project Regression Test Suites:
+   - test_farm_animal.ps1 : 46 / 46 Passed (100%)
+   - test_feed_silage.ps1 : 76 / 76 Passed (100%)
+
+TOTAL AUTOMATED TESTS PASSING: 195 / 195 (100%)
+
+--------------------------------------------------------------------------------
+8. SWAGGER / OPENAPI DOCUMENTATION
+--------------------------------------------------------------------------------
+Swagger UI and OpenAPI 3.0 documentation are fully configured and accessible:
+- Swagger UI Interactive Dashboard: http://localhost:8080/swagger-ui.html (or http://localhost:8080/swagger-ui/index.html)
+- Raw OpenAPI 3.0 JSON Specification: http://localhost:8080/v3/api-docs
+
+Features Enabled:
+- 8 Grouped Tags:
+  * 1. Authentication (Register, Login)
+  * 2. Farm Management (CRUD operations)
+  * 3. Animal Management (CRUD & lactation details)
+  * 4. Feed Samples (CRUD & test history)
+  * 5. Silage Samples (CRUD & fermentation history)
+  * 6. Test Results (Measurement recording & history)
+  * 7. Quality & Risk Assessment (Quality assessment, risk screening, animal health screening, visual screening)
+  * 8. Advisories (Querying & mark as read)
+- 25 Interactive REST Endpoints with summaries and schemas.
+- JWT Bearer Authentication Button: Click 'Authorize' in Swagger UI and supply your JWT token to test secured endpoints directly in your browser.
+
+--------------------------------------------------------------------------------
+9. CONCLUSION & NEXT STEPS
+--------------------------------------------------------------------------------
+Milestone 5 is complete, fully tested, and cleanly integrated. The backend now provides a robust, decoupled, and scientifically honest Quality Assessment and Advisory Engine that safeguards animal health while maintaining non-diagnostic advisory boundaries.
+Ready for next milestone upon user direction.
+================================================================================

@@ -1,0 +1,214 @@
+================================================================================
+CattleFeedAI — Milestone 11 (M11): Feed Planning + Unified Farmer Dashboard Summary
+================================================================================
+
+1. OBJECTIVE
+--------------------------------------------------------------------------------
+Implement a robust, secure, and production-ready Feed Planning & Management
+workflow and a Unified Farmer Dashboard for CattleFeedAI, building directly upon
+Milestones M1 through M10.
+
+The milestone delivers:
+- Software-only feed planning and ration scheduling workflow.
+- Contextual decision-support linking livestock, feed/silage materials, latest
+  laboratory chemistry, quality scores, risk indicators, and animal advisories.
+- Complete upgrade of the mobile Dashboard into a Unified Farmer Dashboard
+  with live dynamic counts, module navigation, and veterinary disclaimer banners.
+- Strict ownership security, data isolation, and scientific non-diagnostic boundaries.
+
+
+2. ARCHITECTURE & WORKFLOW
+--------------------------------------------------------------------------------
+The M11 architecture integrates Feed Planning and the Unified Dashboard seamlessly
+with the existing M1–M10 microservices and data layer:
+
+   [Unified Farmer Dashboard]
+          │
+          ├───▶ Live Unread Alert Badge (🔔 /api/alerts/unread-count)
+          ├───▶ Farm & Herd Overview (/api/farms, /api/animals)
+          ├───▶ Feed & Silage Inventory (/api/feed-samples, /api/silage-samples)
+          ├───▶ Quality & Risk Summary (/api/analytics/summary)
+          ├───▶ Active Feed Plans Summary (/api/feed-plans)
+          ├───▶ Recent Alerts Preview (/api/alerts)
+          ├───▶ Expert Consultations Preview (/api/consultations)
+          └───▶ Navigation Hub (Farms, Animals, Feeds, Tests, Plans, Alerts, Advisories)
+
+   [Feed Planning Workflow]
+          │
+          ├───▶ Create Plan: POST /api/feed-plans
+          │      └── Links Animal + Feed/Silage Sample + Scheduled Quantity + Frequency
+          ├───▶ View Plan: GET /api/feed-plans/{id}
+          │      └── Reuses QualityAssessmentService & RiskAssessmentService (Non-diagnostic)
+          │      └── Ingests latest TestResult & Animal Advisories without recalculation
+          ├───▶ Update Plan: PUT /api/feed-plans/{id}
+          └───▶ Delete Plan: DELETE /api/feed-plans/{id}
+
+
+3. BACKEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+- Entity:
+  * Reused and extended existing `FeedPlan` entity (`com.cattlefeedai.api.entity.FeedPlan`).
+  * Added optional, non-breaking fields:
+    - `feedSample` (@ManyToOne FeedSample, nullable)
+    - `silageSample` (@ManyToOne SilageSample, nullable)
+    - `plannedQuantity` (Double, kg/day)
+    - `frequency` (VARCHAR 50)
+    - `notes` (TEXT)
+  * Preserved timestamps (`createdAt`, `updatedAt`), `status`, `planName`, `startDate`, `endDate`.
+  * Synchronized MySQL table `cattlefeedai.feed_plans` with foreign keys to `feed_samples` and `silage_samples`.
+
+- Repository:
+  * `FeedPlanRepository`:
+    - `findByAnimalId(Long animalId)`
+    - `findByAnimalIdOrderByCreatedAtDesc(Long animalId)`
+    - `findByAnimalFarmOwnerIdOrderByCreatedAtDesc(Long ownerId)`
+    - `countActiveByOwnerId(Long ownerId)`
+    - `countByAnimalFarmOwnerId(Long ownerId)`
+
+- DTOs:
+  * `FeedPlanRequest`: planName, description, startDate, endDate, status, animalId, feedSampleId,
+    silageSampleId, plannedQuantity, frequency, notes.
+  * `FeedPlanResponse`: Complete response containing plan attributes, animal summary, feed/silage
+    summaries, latest test result summary, qualityStatus ("GOOD", "ACCEPTABLE", "UNSAFE", etc.),
+    riskLevel ("LOW", "MEDIUM", "HIGH"), riskIndicators list, recent advisories list, and disclaimer.
+
+- Service:
+  * `FeedPlanService`:
+    - `createFeedPlan`: Enforces animal ownership (403), feed/silage sample ownership (403),
+      and start/end date consistency (400).
+    - `getFeedPlans`: Lists plans strictly scoped to animals on farms owned by authenticated farmer.
+    - `getFeedPlanById`: Returns plan details; strictly blocks cross-owner access with 403.
+    - `updateFeedPlan`: Updates schedule, quantity, or assigned animal/samples with 403 check.
+    - `deleteFeedPlan`: Removes plan from MySQL with 403 check.
+    - `toResponse`: Reuses `qualityAssessmentService.assessQuality` and `riskAssessmentService.assessRisk`
+      from authoritative assessment engine without duplicating rules or thresholds.
+
+- Controller:
+  * `FeedPlanController` (`/api/feed-plans`):
+    - `POST /api/feed-plans` (201 Created)
+    - `GET /api/feed-plans` (200 OK)
+    - `GET /api/feed-plans/{id}` (200 OK)
+    - `PUT /api/feed-plans/{id}` (200 OK)
+    - `DELETE /api/feed-plans/{id}` (204 No Content)
+
+
+4. FRONTEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+- Models (`src/models/feedPlan.ts` & `src/models/index.ts`):
+  * `FeedPlan`, `FeedPlanRequest`, `AnimalSummary`, `FeedSampleSummary`, `SilageSampleSummary`,
+    `TestResultSummary`, `RiskIndicatorSummary`, `AdvisorySummary`.
+
+- Service Client (`src/services/feedPlanService.ts` & `src/services/index.ts`):
+  * Fully integrated client communicating via centralized `apiClient` with JWT Bearer tokens.
+
+- Screens:
+  * `FeedPlanListScreen.tsx`:
+    - Filter tabs: ALL, ACTIVE, COMPLETED, CANCELLED.
+    - Cards showing animal tags, scheduled dates, planned daily kg, and quality/risk badges.
+    - Pull-to-refresh, empty state, and + Create Plan action.
+  * `FeedPlanDetailsScreen.tsx`:
+    - Full details view: Animal profile, linked feed/silage, schedule, ration composition.
+    - Authoritative lab chemistry and quality/risk screening context.
+    - Identified risk alerts with mitigation recommendations.
+    - Recent animal advisories.
+    - Mandatory non-diagnostic veterinary disclaimer banner.
+    - Edit and Delete actions (with confirmation modal).
+  * `AddFeedPlanScreen.tsx`:
+    - Dropdowns for owned animals, feed batches, and silage batches.
+    - Date inputs with validation (end date cannot precede start date).
+    - Planned quantity (kg/day) and frequency selection.
+  * `EditFeedPlanScreen.tsx`:
+    - Prepopulates existing feed plan fields and allows editing status, ration, and schedule.
+
+- Unified Farmer Dashboard (`src/screens/dashboard/DashboardScreen.tsx`):
+  * Header with live unread notification bell badge (🔔 count).
+  * Live Farm & Herd Overview cards (My Farms count, My Livestock count).
+  * Feed & Silage inventory counts.
+  * Quality & Risk Overview section with live safe/attention/unsafe counts from analytics.
+  * Feed Planning section showing active feed plans count and quick preview.
+  * Notifications & Alerts card with unread count and top 2 alert previews.
+  * Expert Consultations card with status count.
+  * Historical Analytics shortcut.
+  * Comprehensive navigation cards routing to all existing modules.
+  * Strict null safety: renders real numbers or loading states, never hardcoded dummy values.
+
+
+5. SECURITY & DATA ISOLATION
+--------------------------------------------------------------------------------
+- Unauthenticated requests to `/api/feed-plans` return 401 Unauthorized.
+- Farmer A can only view, create, edit, or delete feed plans belonging to animals/farms they own.
+- Cross-owner animal reference on creation returns 403 Forbidden.
+- Cross-owner feed/silage sample reference on creation returns 403 Forbidden.
+- Cross-owner access to `/api/feed-plans/{id}` returns 403 Forbidden.
+- Cross-owner modification or deletion returns 403 Forbidden.
+- Non-existent resources return 404 Not Found.
+- No data leakage between farmers.
+
+
+6. SCIENTIFIC SAFETY BOUNDARIES
+--------------------------------------------------------------------------------
+- Presentation & Planning Layer Only: Feed plans do not claim to automatically prescribe diets.
+- Non-Diagnostic Terminology: Uses "Potential Risk", "Risk Indicator", and "Safety Screening".
+- Professional Roles: Uses "Veterinarian", "Veterinary Nutritionist", and "Animal Nutrition Expert".
+  The term "dietician" is strictly prohibited and absent from the codebase.
+- Disclaimer Banners: Rendered on Feed Plan Details and Unified Dashboard.
+- Quality/Risk calculations are never duplicated inside FeedPlanService; authoritative results from
+  QualityAssessmentService and RiskAssessmentService are consumed directly.
+
+
+7. TESTING
+--------------------------------------------------------------------------------
+A. Backend Tests (Maven Surefire):
+   - Total Tests: 107 passed, 107 total (0 failures, 0 errors, 0 skipped).
+   - `FeedPlanServiceUnitTest.java`: 15 unit tests covering CRUD, animal ownership, feed sample
+     ownership, silage sample ownership, 403 checks, 404 checks, 400 invalid dates, context
+     gathering, and fallback to "Not Available".
+   - `FeedPlanIntegrationTest.java`: 8 MockMvc integration tests verifying 401, 403 cross-owner
+     isolation, 404, 400 validation, 201 creation, 204 deletion, and MySQL persistence.
+   - All 84 baseline tests (M1–M10) pass with zero regression.
+
+B. Frontend Tests (Jest):
+   - Total Test Suites: 32 passed, 32 total.
+   - Total Tests: 322 passed, 322 total (0 failures, 0 skipped).
+   - `src/__tests__/feedPlanService.test.ts`: 9 unit tests covering all client endpoints and error types.
+   - `src/__tests__/m11FeedPlanWorkflow.test.ts`: 24 workflow tests covering navigation, filtering,
+     form validation, live counts computation, and scientific safety terminology.
+   - All 289 baseline tests (M6.2–M10) pass with zero regression.
+
+C. TypeScript Compilation:
+   - `npm run type-check` (`tsc --noEmit`): 0 errors, 100% clean compilation.
+
+D. Live API Verification:
+   - Executed against real Spring Boot + real MySQL 8+ + JWT on localhost:8080:
+     * 401 verified on unauthenticated access
+     * Registration & JWT authentication of Farmer A and Farmer B verified
+     * Farm A, Animal A, Feed Sample A, Silage Sample A, and Test Result A created
+     * Feed Plan created and persisted in MySQL with full references
+     * Feed Plan details retrieved with authoritative quality status [GOOD] and lab chemistry
+     * Cross-owner retrieval blocked with 403 Forbidden
+     * Cross-owner animal reference on creation blocked with 403 Forbidden
+     * Feed Plan update (COMPLETED, quantity 6.0) verified
+     * Cross-owner update blocked with 403 Forbidden
+     * Feed Plan deletion verified (204 No Content)
+     * Deleted Feed Plan retrieval verified (404 Not Found)
+     * Unified Dashboard live verification passed with real counts:
+       - Farms: 1, Animals: 1, Feeds: 1, Silages: 1, Unread Alerts: 0, Analytics Animals: 1
+
+
+8. KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+- Feed plans are created and updated manually through the app interface; automatic AI ration
+  generation is reserved for future scientific formulation models.
+- Dashboard updates use focused screen event listeners and pull-to-refresh; push notifications
+  and background websockets remain out of scope.
+
+
+9. FUTURE SCOPE
+--------------------------------------------------------------------------------
+The following features are intentionally out of scope for M11 and reserved for future milestones:
+- Automated veterinary ration formulation / linear programming optimizers
+- Push notifications, SMS, email, and WhatsApp dispatch infrastructure
+- Background automated scheduled tasks / crons
+- IoT sensors, spectrometers, and NIR hardware integration
+- Offline caching and synchronization
+================================================================================

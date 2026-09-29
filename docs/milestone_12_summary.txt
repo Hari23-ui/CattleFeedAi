@@ -1,0 +1,272 @@
+================================================================================
+CattleFeedAI — Milestone 12 (M12): Integrated Decision Support Summary
+AI + Expert Consultation + Analytics Enhancement
+================================================================================
+
+1. OBJECTIVE
+--------------------------------------------------------------------------------
+Milestone 12 (M12) is a software-only integration and enhancement milestone connecting
+the existing CattleFeedAI functional domains from Milestones M1–M11:
+- AI Visual Screening (M7)
+- Feed / Silage Sample Inventory (M2, M3)
+- Laboratory Test Results (M4)
+- Rule-based Quality Assessment (M5)
+- Risk Assessment (M5)
+- Animal Health Risk Screening (M6)
+- Feed Plans & Ration Records (M11)
+- Advisories & Notifications (M5, M10)
+- Expert Consultations (M8)
+- Historical Analytics (M9)
+
+This provides an authoritative, evidence-based decision-support workflow for farmers,
+veterinarians, and animal nutrition experts without redesigning working architecture,
+creating duplicate services, or fabricating scientific calculations.
+
+
+2. INTEGRATED ARCHITECTURE
+--------------------------------------------------------------------------------
+The M12 core workflow forms a closed-loop decision support cycle:
+
+Animal Profile (Tag, Lactation, Yield)
+   +
+Feed / Silage Sample Information (Origin, Photos)
+   +
+Laboratory Test Results (Moisture, CP, Fiber, pH)
+   +
+Rule-Based Quality Assessment (GOOD, ACCEPTABLE, etc.)
+   +
+Risk Assessment (Contamination, Spoilage, Nutritional)
+   +
+AI Visual Screening (Surface Characteristics / Discoloration)
+   +
+Animal Health Screening (Observations & Dietary correlation)
+   +
+Active Feed Plans (Ration Schedules)
+   +
+Historical Records & Analytics
+        ↓
+Unified Evidence Summary Aggregation Layer (EvidenceSummaryService)
+        ↓
+Expert Consultation (Farmer Submits Case)
+        ↓
+Expert Review (Comprehensive Unified Evidence View)
+        ↓
+Professional Response (Veterinarian / Veterinary Nutritionist Advisory)
+        ↓
+Farmer (Inspects Unified Findings & Action Plan)
+        ↓
+Historical Analytics & Monitoring (Track Long-Term Progression)
+
+
+3. EVIDENCE AGGREGATION ARCHITECTURE
+--------------------------------------------------------------------------------
+The backend introduces a dedicated orchestration and aggregation layer:
+- Service: `com.cattlefeedai.api.service.evidence.EvidenceSummaryService`
+  * Pure orchestration: delegates to existing authoritative services:
+    - `AnimalRepository`, `FeedSampleRepository`, `SilageSampleRepository`, `TestResultRepository`
+    - `QualityAssessmentService` (reused as-is)
+    - `RiskAssessmentService` (reused as-is)
+    - `AnimalHealthScreeningService` (reused as-is)
+    - `AiServiceClient` (reused as-is)
+    - `AdvisoryService` (reused as-is)
+    - `FeedPlanService` (reused as-is)
+    - `AnalyticsService` (reused as-is)
+  * NO scientific recalculations or formula reimplementation.
+  * Absence of data strictly yields null, empty collections, or "Not Available".
+  * Data fabrication is strictly prevented.
+
+
+4. EVIDENCE APIS
+--------------------------------------------------------------------------------
+Minimal, highly-cohesive REST endpoints exposed via `EvidenceController`:
+
+1. GET /api/evidence/animals/{animalId}
+   - Aggregates animal profile, feed/silage samples, latest lab test results,
+     rule-based quality evaluation, risk assessment, visual screening, health
+     screening, active feed plans, recent advisories, and historical summary.
+   - Authorized for: Animal owner (Farmer), consultation-assigned Expert, or Admin.
+
+2. GET /api/evidence/consultations/{consultationId}
+   - Aggregates the consultation context, patient animal, associated feed/silage,
+     test results, assessments, feed plans, and historical baseline.
+   - Authorized for: Consultation requester (Farmer), assigned Expert, or Admin.
+
+Response Structure (EvidenceSummaryResponse):
+{
+  "animal": { ... },
+  "consultation": { ... },
+  "feedEvidence": [ ... ],
+  "silageEvidence": [ ... ],
+  "testEvidence": [ ... ],
+  "qualityEvidence": { ... },
+  "riskEvidence": { ... },
+  "visualScreeningEvidence": { ... },
+  "healthScreeningEvidence": { ... },
+  "feedPlans": [ ... ],
+  "advisories": [ ... ],
+  "historicalSummary": { ... },
+  "disclaimer": "This evidence summary combines available recorded, laboratory, screening, and historical information for decision support. AI visual screening evaluates image characteristics only and does not measure chemical composition or provide veterinary diagnosis. Professional interpretation should be obtained from a qualified Veterinarian or Veterinary Nutritionist."
+}
+
+
+5. EXPERT CONSULTATION ENHANCEMENT
+--------------------------------------------------------------------------------
+The M8 Expert Consultation workflow is augmented with seamless evidence access:
+- In `ExpertConsultationReviewScreen`:
+  * Added a prominent "View Unified Evidence Summary" action button.
+  * Navigates directly to the unified evidence view scoped to the specific consultation.
+- In `ConsultationDetailsScreen`:
+  * Farmer can inspect the exact evidence dossier provided to the expert.
+- Transparent Source Badges:
+  * LABORATORY DATA (Chemical tests)
+  * AI VISUAL SCREENING (Surface characteristics)
+  * RULE-BASED QUALITY ASSESSMENT (Deterministic nutrient thresholds)
+  * RISK SCREENING (Nutritional, contamination, spoilage risks)
+  * ANIMAL HEALTH SCREENING (Observations and non-diagnostic risk screening)
+  * FARMER RECORDED INFORMATION (Herd profile, lactation)
+  * EXPERT RESPONSE (Veterinarian / Veterinary Nutritionist recommendations)
+  * HISTORICAL ANALYTICS (Long-term distribution)
+
+
+6. AI INTEGRATION & SOURCE TRANSPARENCY
+--------------------------------------------------------------------------------
+- Full reuse of existing M7 FastAPI AI microservice pipeline.
+- Analysis Source Transparency:
+  * `ML_VISUAL_SCREENING` is displayed with model version (e.g. v0.3.0) when ML is available.
+  * `DETERMINISTIC_VISUAL_SCREENING` is explicitly shown when fallback heuristics are used.
+  * The UI never labels deterministic results as ML.
+- Visual Screening Scope:
+  * Limited strictly to physical surface characteristics: mould, spoilage, discoloration, foreign materials.
+  * Disclaimers explicitly reinforce that visual screening DOES NOT predict crude protein,
+    moisture, fiber, energy, minerals, urea, pH, or veterinary disease.
+
+
+7. ANALYTICS ENHANCEMENT
+--------------------------------------------------------------------------------
+- Reused `AnalyticsService` without altering backend logic.
+- Filter options supported: All History, 7 Days, 30 Days, 90 Days.
+- Mobile-friendly visualization using native cards, status distribution chips, and chronological test points.
+- Historical data points are 100% authentic backend records; trends are never synthetic.
+- Missing values remain "Not Available"; never converted to zero.
+
+
+8. FRONTEND CHANGES
+--------------------------------------------------------------------------------
+New Files:
+- `src/models/evidence.ts`: Type definitions for EvidenceSummary, nested evidence items, and source types.
+- `src/services/evidenceService.ts`: HTTP client calling `/api/evidence/animals/{id}` and `/api/evidence/consultations/{id}`.
+- `src/components/EvidenceSourceBadge.tsx`: Visual tag attributing evidence to its authoritative source.
+- `src/components/EvidenceSectionCard.tsx`: Collapsible/card container displaying evidence sections with empty states.
+- `src/screens/evidence/EvidenceSummaryScreen.tsx`: Complete 10-section unified evidence screen with pull-to-refresh, deep links, and disclaimers.
+- `src/screens/evidence/index.ts`: Screen export barrel.
+- `src/__tests__/evidenceService.test.ts`: Jest tests for evidence service.
+- `src/__tests__/m12EvidenceWorkflow.test.ts`: Jest tests for workflow, navigation, and boundary enforcement.
+
+Updated Files:
+- `src/models/index.ts`: Exported evidence models.
+- `src/services/index.ts`: Exported evidenceService.
+- `src/components/index.ts`: Exported EvidenceSourceBadge and EvidenceSectionCard.
+- `src/components/ScreenContainer.tsx`: Added `testID` prop support.
+- `src/navigation/types.ts`: Added `EvidenceSummary` route definition.
+- `src/navigation/AppNavigator.tsx`: Registered `EvidenceSummaryScreen`.
+- `src/screens/animal/AnimalDetailsScreen.tsx`: Added single animal-centric workflow and "Review Evidence" navigation.
+- `src/screens/consultation/ConsultationDetailsScreen.tsx`: Added "View Unified Evidence Summary" button.
+- `src/screens/consultation/ExpertConsultationReviewScreen.tsx`: Added "View Unified Evidence Summary" button.
+- `src/screens/feedPlan/FeedPlanDetailsScreen.tsx`: Added "Review Unified Evidence Summary" button.
+- `src/screens/dashboard/DashboardScreen.tsx`: Added "Unified Evidence View" card and navigation.
+
+
+9. SECURITY & DATA ISOLATION
+--------------------------------------------------------------------------------
+Multi-tenant security enforced at Spring Security and service layers:
+- FARMER: Restricted strictly to own User -> Farm -> Animal -> Samples hierarchy.
+  * Cross-farmer animal evidence request -> 403 Forbidden.
+  * Cross-farmer consultation evidence request -> 403 Forbidden.
+- EXPERT: Evidence access granted ONLY when consultation is assigned to that expert.
+  * Unassigned expert accessing consultation evidence -> 403 Forbidden.
+  * Assigned expert accessing consultation evidence -> 200 OK.
+- ADMIN: System-wide decision-support access.
+- Unauthenticated requests -> 401 Unauthorized.
+- Non-existent animal or consultation -> 404 Not Found.
+- Cross-farmer evidence leakage: 0 instances.
+
+
+10. SCIENTIFIC BOUNDARIES & SAFETY
+--------------------------------------------------------------------------------
+- Platform classification: Non-diagnostic decision-support and screening platform.
+- Strictly prohibited terminology maintained: "dietician" is rejected in favor of
+  "Veterinarian", "Veterinary Nutritionist", and "Animal Nutrition Expert".
+- Diagnostic boundaries: Does not provide veterinary disease diagnosis, treatment
+  prescriptions, or automated diet formulation.
+- Preserved terminology: "Potential Risk", "Risk Indicator", "Possible Feed-Related Concern",
+  "Visual Screening", "Evidence Summary", "Professional Advisory".
+- Mandatory evidence disclaimer displayed prominently on the summary screen.
+
+
+11. TESTS
+--------------------------------------------------------------------------------
+Backend Tests:
+- `EvidenceSummaryServiceUnitTest.java`: 11 unit tests verifying animal evidence,
+  consultation evidence, ownership checks, unassigned expert 403, and null handling.
+- `EvidenceIntegrationTest.java`: 12 MockMvc integration tests verifying security,
+  HTTP 401/403/404/200, and JSON response structure.
+- Total Backend Tests: 130 tests (100% passing, 0 failures, 0 errors).
+
+Frontend Tests:
+- `evidenceService.test.ts`: API client unit tests for animal & consultation evidence.
+- `m12EvidenceWorkflow.test.ts`: Workflow navigation, source badge attribution,
+  ML transparency, empty states, and terminology verification.
+- Total Frontend Tests: 336 tests across 34 suites (100% passing, 0 failures).
+- TypeScript Type-Check: `tsc --noEmit` passed with 0 errors.
+
+AI Microservice Tests:
+- Pytest suite: 45 tests passed.
+
+
+12. LIVE END-TO-END VERIFICATION
+--------------------------------------------------------------------------------
+Automated live verification (`verify_m12_live.py`) executed against live Spring Boot,
+MySQL, and FastAPI AI service:
+1. Unauthenticated /api/evidence/* returned 401 Unauthorized. [PASS]
+2. Registered & authenticated Farmer A, Farmer B, Expert A, Expert B. [PASS]
+3. Farmer A created Farm A. [PASS]
+4. Farmer A created Animal A (Kamdhenu M12). [PASS]
+5. Farmer A created Feed Sample and Silage Sample. [PASS]
+6. Farmer A recorded laboratory Test Result. [PASS]
+7. Executed Quality Assessment (GOOD) and Risk Assessment (LOW). [PASS]
+8. Farmer A created Feed Plan. [PASS]
+9. Farmer A submitted Consultation request. [PASS]
+10. Expert A accepted Consultation. [PASS]
+11. Unassigned Expert B received 403 Forbidden accessing consultation evidence. [PASS]
+12. Cross-owner Farmer B received 403 Forbidden accessing Farmer A animal evidence. [PASS]
+13. Farmer B received 403 Forbidden accessing Farmer A consultation evidence. [PASS]
+14. Verified 404 Not Found for missing animal and consultation. [PASS]
+15. Assigned Expert A retrieved complete Evidence Summary (200 OK). [PASS]
+16. Farmer A retrieved Animal Evidence Summary (200 OK). [PASS]
+17. Expert A submitted professional recommendation. [PASS]
+18. Farmer A retrieved completed Consultation with expert recommendation. [PASS]
+19. Verified Historical Analytics Summary & Animal History are live and accurate. [PASS]
+20. Verified scientific boundaries: no "dietician", non-diagnostic boundaries preserved. [PASS]
+
+
+13. REGRESSION RESULTS
+--------------------------------------------------------------------------------
+Existing functionality across all completed milestones was preserved without regression:
+- M6.3, M6.4, M6.5, M6.6 (Animal Health Screening, Validation, Observation workflows)
+- M7.2, M7.3 (AI Visual Screening, ML Fallback, Analysis Source metadata)
+- M8 (Expert Consultations, Review, Response workflows)
+- M9 (Historical Analytics, Date filters, Quality/Risk trends)
+- M10 (Alerts & Notifications, Unread count badges)
+- M11 (Feed Planning, Unified Farmer Dashboard)
+
+
+14. KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+- Evidence aggregation requires network connectivity to backend; offline evidence caching is out of scope.
+- In-depth chemical analysis remains reliant on physical laboratory testing; AI visual screening is strictly confined to surface characteristics.
+- Push notifications, SMS, WhatsApp, and background schedulers are excluded by specification.
+
+
+15. FUTURE SCOPE
+--------------------------------------------------------------------------------
+- Milestone 13 (M13): Final system hardening, comprehensive cross-milestone end-to-end regression testing, UI polish, complete release packaging, and deployment documentation.

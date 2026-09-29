@@ -1,0 +1,340 @@
+================================================================================
+CATTLEFEEDAI — MILESTONE 8 SUMMARY REPORT
+EXPERT CONSULTATION ADVISORY WORKFLOW
+================================================================================
+Timestamp: 2026-09-28
+Milestone: M8 — EXPERT CONSULTATION
+Status: COMPLETE & VERIFIED
+
+================================================================================
+1. OBJECTIVE
+================================================================================
+Implement a robust, complete expert consultation workflow connecting dairy farmers
+with qualified animal health and veterinary nutrition experts (Veterinarians,
+Veterinary Nutritionists, Animal Nutrition Experts).
+
+The workflow enables farmers to submit targeted advisory inquiries linking their
+specific cattle herd profiles, feed samples, silage quality assessments, lab test
+results, and AI-assisted visual screenings. Qualified experts can review this complete
+context, claim/accept consultations, move them through active clinical review,
+provide authoritative professional recommendations and notes, and finalize completed
+consultations.
+
+Strict Non-Diagnostic Boundary:
+This workflow is a professional advisory support system, NOT an automated veterinary
+diagnosis system. Automated disease diagnosis, guaranteed clinical treatments, and
+fabricated laboratory measurements are strictly prohibited.
+
+================================================================================
+2. EXISTING ARCHITECTURE & REUSED ENTITIES
+================================================================================
+Milestone 8 builds directly upon the existing, verified M1–M7 foundation without
+duplicating entities or altering database constraints unnecessarily:
+
+- Reused Entities:
+  * Consultation (com.cattlefeedai.api.entity.Consultation):
+    Reused existing entity. Added optional relations to FeedSample and SilageSample,
+    added expertNotes (TEXT), additionalContext (TEXT), completedAt (LocalDateTime),
+    and extended status mapping with ACCEPTED and COMPLETED.
+  * Expert (com.cattlefeedai.api.entity.Expert):
+    Reused existing entity. Linked 1:1 with User where role = EXPERT. Fields include
+    qualification, specialization, experienceYears, licenseNumber, bio, availabilityStatus.
+  * User (com.cattlefeedai.api.entity.User):
+    Reused existing entity with Role enum (FARMER, EXPERT, ADMIN).
+  * Animal (com.cattlefeedai.api.entity.Animal):
+    Reused existing entity and profile data (lactationStage, milkProductionPerDay, etc.).
+  * FeedSample & SilageSample:
+    Reused existing entities, historical test results, and attached images.
+  * TestResult:
+    Reused lab test results (moisture, crudeProtein, fiber, ph, overallQuality).
+  * HealthRisk & Advisory:
+    Reused existing screening risk indicators and active herd advisories.
+  * SampleImage & AI Service:
+    Reused existing M7 visual analysis and image attachments without modifying the AI pipeline.
+
+- Terminology:
+  * Veterinarian
+  * Veterinary Nutritionist
+  * Animal Nutrition Expert
+  * Strictly NO use of "dietician".
+
+================================================================================
+3. BACKEND IMPLEMENTATION
+================================================================================
+- Domain & Enums:
+  * ConsultationStatus: REQUESTED, ACCEPTED, IN_REVIEW, RESPONDED, COMPLETED, CLOSED, CANCELLED
+  * Specialization: ANIMAL_NUTRITION, VETERINARY, DAIRY_MANAGEMENT, OTHER
+  * Role: FARMER, EXPERT, ADMIN
+
+- DTOs (com.cattlefeedai.api.dto.consultation):
+  * ConsultationRequest: subject, question (farmerMessage), additionalContext, animalId, feedSampleId, silageSampleId
+  * ExpertRecommendationRequest: recommendation, expertNotes
+  * ConsultationResponse: comprehensive response with summary fields, timestamps, farmer/expert metadata,
+    and nested review summaries (AnimalSummaryDto, TestResultSummaryDto, SampleImageSummaryDto,
+    FeedSampleSummaryDto, SilageSampleSummaryDto, HealthRiskSummaryDto, AdvisorySummaryDto).
+  * RegisterRequest: extended with optional role (EXPERT/FARMER) and expert profile fields.
+
+- Repository:
+  * ConsultationRepository: added findByFarmerIdOrderByCreatedAtDesc, findByExpertIdOrderByCreatedAtDesc,
+    findAvailableOrAssignedToExpert (JPQL query for assigned or open unassigned requests), findAllByOrderByCreatedAtDesc.
+  * ExpertRepository: findByUserId(Long userId).
+
+- Service (ConsultationService):
+  * Strict ownership enforcement (farmers can only view/cancel their own consultations).
+  * Valid consultation status lifecycle transitions enforced.
+  * Automatic assignment of accepting expert.
+  * Rejection of cross-farmer access (403) and invalid status operations (400).
+  * Comprehensive detail mapping with "Not Available" fallbacks for missing data.
+
+- REST Controller (ConsultationController):
+  * POST /api/consultations
+  * GET  /api/consultations
+  * GET  /api/consultations/{id}
+  * PUT  /api/consultations/{id}/accept
+  * PUT  /api/consultations/{id}/review
+  * PUT  /api/consultations/{id}/respond
+  * PUT  /api/consultations/{id}/complete
+  * PUT  /api/consultations/{id}/cancel
+
+================================================================================
+4. FRONTEND IMPLEMENTATION
+================================================================================
+Technology: React Native, TypeScript, Vanilla CSS/styles matching design tokens.
+
+- Models (src/models/consultation.ts):
+  * ConsultationStatus, Specialization, ConsultationRequest, ExpertRecommendationRequest, ConsultationResponse.
+  * Exported in src/models/index.ts.
+
+- Service (src/services/consultationService.ts):
+  * Full REST API client methods for all 8 backend endpoints.
+
+- UI Screens (src/screens/consultation/):
+  * RequestConsultationScreen.tsx:
+    Form with Subject, Question, Additional Context, and horizontal selection chips for
+    optional Animal, Feed Sample, and Silage Sample. Full input validation and non-diagnostic disclaimer.
+  * ConsultationListScreen.tsx:
+    List view with status badges, date, expert name, and linked reference tags.
+    Pull-to-refresh, empty states, and role-aware navigation.
+  * ConsultationDetailsScreen.tsx:
+    Farmer & general consultation details showing all 11 required fields, status badge,
+    expert profile, expert recommendation box, notes, and cancel button for eligible requests.
+  * ExpertConsultationReviewScreen.tsx:
+    Comprehensive clinical review screen displaying ONLY existing data (animal profile,
+    feed/silage sample details, test results, attached images, health screening risks, advisories).
+    Context-aware action buttons: Accept, Move to In-Review, Provide Recommendation, Complete.
+  * ExpertResponseScreen.tsx:
+    Form for expert recommendation and optional advisory notes with prominent non-diagnostic notice.
+
+- Navigation:
+  * Added routes to AppStackParamList in types.ts.
+  * Registered screens in AppNavigator.tsx.
+
+- Dashboard Integration:
+  * Added "Expert Consultation" module card to DashboardScreen.tsx.
+  * Farmer: "+ Request Consultation" and "My Consultations".
+  * Expert: "Consultation Requests".
+
+================================================================================
+5. CONSULTATION LIFECYCLE
+================================================================================
+Lifecycle transitions are strictly validated and controlled by backend logic:
+
+                 REQUESTED
+                /         \
+   (Expert accepts)      (Farmer cancels)
+              /             \
+          ACCEPTED       CANCELLED
+             |
+   (Expert reviews)
+             |
+          IN_REVIEW
+             |
+   (Expert responds)
+             |
+          RESPONDED
+             |
+   (Expert completes)
+             |
+          COMPLETED
+
+State Rules:
+1. When created by farmer -> REQUESTED.
+2. Only open (unassigned) REQUESTED consultations can be claimed/accepted by an expert -> ACCEPTED.
+3. Once accepted, moving into review -> IN_REVIEW.
+4. Responding with recommendation and notes -> RESPONDED (records responseDate).
+5. Only RESPONDED consultations can be finalized -> COMPLETED (records completedAt).
+6. Farmers can cancel ONLY while in REQUESTED or ACCEPTED status; once review/response begins,
+   cancellation is rejected with 400 Bad Request.
+7. Status cannot be modified arbitrarily or regressed from terminal states (COMPLETED, CANCELLED).
+
+================================================================================
+6. FARMER WORKFLOW
+================================================================================
+1. Farmer logs into CattleFeedAI and taps "+ Request Consultation" on Dashboard.
+2. Farmer enters Subject, detailed Question/Concern, and optional Additional Context.
+3. Farmer optionally links an owned Animal, Feed Sample, or Silage Sample.
+4. System validates inputs and creates consultation with status REQUESTED.
+5. Farmer can track consultation status on "My Consultations" screen.
+6. If needed, farmer can cancel the consultation before review commences.
+7. When the expert responds, farmer opens Consultation Details to view:
+   - Expert name, qualifications, and specialization
+   - Authoritative Professional Recommendation
+   - Additional Expert Advisory Notes
+   - Response date and completion timestamp
+
+================================================================================
+7. EXPERT WORKFLOW
+================================================================================
+1. Qualified expert (Veterinarian / Nutritionist) registers/logs in with EXPERT role.
+2. Expert views "Consultation Requests" on Dashboard to view assigned and open inquiries.
+3. Expert taps an open consultation to inspect the farmer's concern.
+4. Expert clicks "Accept Consultation" to assign themselves and move status to ACCEPTED.
+5. Expert clicks "Start Review" to transition to IN_REVIEW.
+6. Expert inspects all linked objective data:
+   - Animal Tag, Breed, Age, Lactation Stage, Daily Milk Yield, Weight, Pregnancy Status
+   - Feed / Silage Sample Code, Type, Source, Sample Date
+   - Laboratory Test Results (Moisture, Crude Protein, Fiber, pH, Overall Quality)
+   - Attached sample images and AI visual screening results
+   - Active herd health risks and advisories
+7. Expert clicks "Provide Recommendation", enters clinical advisory recommendation and notes.
+8. Submitting moves status to RESPONDED.
+9. Expert marks consultation as COMPLETED once advisory engagement concludes.
+
+================================================================================
+8. API ENDPOINTS
+================================================================================
+Method | Path                          | Access  | Description
+-------+-------------------------------+---------+---------------------------------------------
+POST   | /api/consultations            | FARMER  | Create a new consultation request
+GET    | /api/consultations            | AUTH    | List consultations (Farmer sees own, Expert sees assigned/open)
+GET    | /api/consultations/{id}       | AUTH    | Get full consultation details with linked review context
+PUT    | /api/consultations/{id}/accept| EXPERT  | Expert claims and accepts an open consultation
+PUT    | /api/consultations/{id}/review| EXPERT  | Expert transitions consultation to IN_REVIEW
+PUT    | /api/consultations/{id}/respond| EXPERT | Expert submits recommendation and advisory notes
+PUT    | /api/consultations/{id}/complete| EXPERT| Expert finalizes and completes consultation
+PUT    | /api/consultations/{id}/cancel| FARMER  | Farmer cancels eligible consultation
+
+================================================================================
+9. SECURITY & AUTHORIZATION
+================================================================================
+- Authentication:
+  Stateless JWT bearer tokens issued upon login/registration with role claims.
+  Unauthenticated requests are strictly rejected with HTTP 401 Unauthorized.
+- Ownership Enforcement:
+  * Farmers cannot view, respond to, or cancel another farmer's consultation (HTTP 403 Forbidden).
+  * Farmers cannot accept consultations or mark them completed (HTTP 403 Forbidden).
+  * Experts cannot access private consultations assigned to another expert (HTTP 403 Forbidden).
+  * Farmers can only link animals, feed samples, or silage samples from farms they own.
+- Resource Verification:
+  Missing consultation IDs strictly return HTTP 404 Not Found.
+- State Validation:
+  Invalid status transitions strictly return HTTP 400 Bad Request.
+
+================================================================================
+10. TEST VERIFICATION
+================================================================================
+Backend Tests (48/48 Passed):
+- ConsultationServiceUnitTest: 20/20 test cases:
+  1. farmerCreatesConsultation: PASS
+  2. farmerGetsOwnConsultation: PASS
+  3. farmerListsOwnConsultations: PASS
+  4. farmerCannotAccessAnotherFarmerConsultation: PASS
+  5. expertCanAccessAssignedConsultation: PASS
+  6. expertAcceptsConsultation: PASS
+  7. expertMovesConsultationToInReview: PASS
+  8. expertResponds: PASS
+  9. farmerSeesExpertResponse: PASS
+  10. expertCompletesConsultation: PASS
+  11. farmerSeesCompleted: PASS
+  12. farmerCancelsEligibleConsultation: PASS
+  13. invalidStatusTransitionRejected: PASS
+  14. missingConsultationReturns404: PASS
+  15. unauthorizedRequestReturns401: PASS
+  16. forbiddenOwnershipReturns403: PASS
+  17. optionalAnimalReferenceWorks: PASS
+  18. optionalFeedReferenceWorks: PASS
+  19. optionalSilageReferenceWorks: PASS
+  20. noFakeInformationReturned: PASS
+- AiServiceClientUnitTest: 8/8 PASS
+- AssessmentEngineUnitTest: 10/10 PASS
+- SampleImageServiceUnitTest: 9/9 PASS
+- CattleFeedAiApplicationTests: 1/1 PASS
+
+Frontend Tests (250/250 Passed):
+- consultationService.test.ts: 16 test cases covering API methods, validation rules,
+  lifecycle sequence, 401/403/404/400 error handling, and scientific terminology.
+- All 27 frontend test suites passing cleanly without errors.
+- TypeScript compiler (tsc --noEmit): 0 errors.
+
+AI Microservice (45/45 Passed):
+- pytest -q in ai-service: 45 passed.
+
+================================================================================
+11. LIVE REAL-PIPELINE VERIFICATION
+================================================================================
+Script: verify_m8_real_pipeline.mjs
+Stack: Real MySQL (cattlefeedai schema) + Real Spring Boot (:8080) + Real JWT + Real FastAPI (:8000)
+Total Live Verification Checks: 53 PASSED, 0 FAILED
+
+Execution Log:
+1. Register Farmer 1: PASS (201 Created, JWT issued)
+2. Register Expert 1: PASS (201 Created, role EXPERT, Expert profile created)
+3. Register Farmer 2: PASS (201 Created)
+4. Register Expert 2: PASS (201 Created)
+5. Farmer 1 creates Farm, Animal, Feed Sample, Silage Sample: PASS (201 Created)
+6. Farmer 1 creates Consultation linked to Animal, Feed, Silage: PASS (201 Created, status REQUESTED)
+7. Expert 1 views queue: PASS (Consultation visible in open queue)
+8. Expert 1 views details: PASS (Animal profile, Feed sample, Silage sample fully populated)
+9. Expert 1 accepts consultation: PASS (status ACCEPTED, expert assigned)
+10. Conflict prevention: Expert 2 cannot accept already accepted consultation: PASS (400 Bad Request)
+11. Expert 1 moves consultation to IN_REVIEW: PASS (status IN_REVIEW)
+12. Cross-farmer security: Farmer 2 access to Farmer 1 consultation rejected: PASS (403 Forbidden)
+13. Invalid transition: Farmer 1 cannot cancel in IN_REVIEW: PASS (400 Bad Request)
+14. Expert 1 submits recommendation and notes: PASS (status RESPONDED, recommendation persisted)
+15. Farmer 1 retrieves and views recommendation: PASS (exact recommendation & expert info received)
+16. Farmer complete rejected: PASS (403 Forbidden)
+17. Expert completes consultation: PASS (status COMPLETED, completedAt recorded)
+18. Farmer confirms COMPLETED: PASS (status COMPLETED, completion timestamp verified)
+19. Cancellation flow: Farmer 2 creates and cancels consultation: PASS (status CANCELLED)
+20. Expert cannot accept cancelled consultation: PASS (400 Bad Request)
+21. Unauthenticated access rejected: PASS (401 Unauthorized)
+22. Nonexistent consultation rejected: PASS (404 Not Found)
+23. Verified via curl.exe: PASS
+
+================================================================================
+12. REGRESSION VERIFICATION
+================================================================================
+Previous milestone automated verification scripts rerun on live backend:
+- verify_m73_real_pipeline.mjs: 119/119 PASSED (0 regressions in M7.3 AI/ML inference)
+- verify_m72_real_pipeline.mjs: 95/95 PASSED (0 regressions in M7.2 visual analysis)
+- verify_m66_real_backend.mjs:  39/39 PASSED (0 regressions in camera image capture)
+- verify_m65_real_backend.mjs:  36/36 PASSED (0 regressions in health screening)
+- verify_m64_real_backend.mjs:  50/50 PASSED (0 regressions in assessment & advisories)
+- verify_m63_real_backend.mjs:  18/18 PASSED (0 regressions in feed/silage testing)
+Total live regression checks passed: 357/357!
+Grand total live verification checks passed: 410/410!
+
+================================================================================
+13. SCIENTIFIC SAFETY & BOUNDARIES
+================================================================================
+- Mandatory Safety Disclaimer:
+  "This system provides decision support and does not replace professional veterinary diagnosis or treatment."
+- Professional advisory terminology enforced:
+  * "Expert Recommendation"
+  * "Professional Assessment"
+  * "Veterinary Guidance"
+- Prohibited Terms:
+  * Strictly NO "AI Diagnosis" or "Automated Disease Diagnosis"
+  * Strictly NO guaranteed treatments or fabricated clinical measurements
+  * Strictly NO use of "dietician"
+- AI visual screening results (when present on attached samples) are strictly presented
+  as supportive indicators with M7 non-diagnostic boundary notices intact.
+
+================================================================================
+14. FUTURE SCOPE DECLARATION
+================================================================================
+Offline support, IoT integration, and NIR instrumentation are future scope and are
+not implemented in the current system.
+Chat, video calling, payment gateways, and calendar scheduling are also excluded
+from Milestone 8 scope.
+================================================================================

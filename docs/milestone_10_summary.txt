@@ -1,0 +1,220 @@
+================================================================================
+CattleFeedAI — Milestone 10 (M10): Notifications & Alerts Summary
+================================================================================
+
+1. OBJECTIVE
+--------------------------------------------------------------------------------
+Implement a robust, secure, and production-ready in-app Notifications & Alerts
+workflow for CattleFeedAI, building directly upon Milestones M1 through M9.
+The workflow alerts dairy farmers to actionable and critical herd events:
+- Feed quality hazards (e.g. UNSAFE feed/silage assessment)
+- High-level risk indicators (e.g. HIGH risk assessment)
+- Urgent rule-derived management advisories (e.g. Priority.HIGH advisories)
+The alerts are persisted in MySQL, presented dynamically on the farmer's mobile
+dashboard and dedicated alert inbox, and tracked through read/unread state.
+
+
+2. ARCHITECTURE
+--------------------------------------------------------------------------------
+The Notifications & Alerts system operates as an integrated communication and
+presentation layer that cleanly consumes events from existing domain services:
+
+  [Existing Assessment / Advisory Event]
+         │ (QualityAssessmentService / RiskAssessmentService / AdvisoryService)
+         ▼
+  [AlertService.processAssessmentAlerts / createAlert]
+         │ (Deduplication + Severity mapping + Association)
+         ▼
+  [MySQL 8+ `alerts` Table Persistence]
+         │
+         ├───▶ GET /api/alerts/unread-count ──▶ Dashboard 🔔 Indicator Badge
+         │
+         ├───▶ GET /api/alerts ───────────────▶ AlertListScreen (Filter All/Unread/Read)
+         │
+         ├───▶ GET /api/alerts/{id} ──────────▶ AlertDetailsScreen (Action details & safety)
+         │
+         ├───▶ PUT /api/alerts/{id}/read ─────▶ Mark individual alert read
+         │
+         └───▶ PUT /api/alerts/read-all ──────▶ Mark all unread alerts read for farmer
+
+
+3. BACKEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+- Entity Reuse & Schema Validation:
+  * Reused existing `Alert` entity (`com.cattlefeedai.api.entity.Alert`) from M1.
+  * Added optional, non-breaking entity linking fields: `relatedEntityType` (VARCHAR 50)
+    and `relatedEntityId` (BIGINT).
+  * Preserved existing enums: `AlertType` and `Severity`. Adjusted MySQL severity column
+    definition to safely store full Java enum values: INFO, NORMAL, WARNING, HIGH, CRITICAL.
+
+- Repository (`AlertRepository`):
+  * `findByUserIdOrderByCreatedAtDesc(Long userId)`
+  * `findByUserIdAndIsReadFalse(Long userId)`
+  * `countByUserIdAndIsReadFalse(Long userId)` (O(1) aggregate count)
+  * `existsByUserIdAndRelatedEntityTypeAndRelatedEntityIdAndTitle(...)` (atomic deduplication)
+  * `markAllAsReadForUser(@Param("userId") Long userId)` (atomic bulk update)
+
+- Service (`AlertService`):
+  * `getAlerts()`: Fetches alerts for authenticated farmer in reverse chronological order.
+  * `getAlertById(Long id)`: Fetches alert, enforcing 403 ownership and 404 existence.
+  * `getUnreadCount()`: Fetches unread alert count for dashboard badge.
+  * `markAsRead(Long id)`: Validates ownership (403 if not owner), marks read, persists.
+  * `markAllAsRead()`: Atomically marks all unread alerts for the current farmer as read.
+  * `createAlert(...)`: Safe alert creator with event deduplication.
+  * `processAssessmentAlerts(...)`: Consumes assessment results and generates alerts:
+      - QualityStatus.UNSAFE -> AlertType.FEED_QUALITY/SILAGE_QUALITY, Severity.CRITICAL
+      - RiskLevel.HIGH -> AlertType.HEALTH_RISK, Severity.HIGH
+      - Priority.HIGH Advisories -> Corresponding AlertType, Severity.HIGH
+
+- Controller (`AlertController`):
+  * Exposed REST endpoints under `/api/alerts` with OpenAPI / Swagger annotations.
+  * Integrated with `AssessmentController` and `AdvisoryService` for automatic triggering.
+
+
+4. FRONTEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+- Models (`src/models/alert.ts` & `src/models/index.ts`):
+  * `Alert`: id, title, message, alertType, severity, isRead, createdAt, userId,
+    relatedEntityType, relatedEntityId.
+  * `AlertSeverity`, `AlertType`, `UnreadCountResponse`, `MarkAllReadResponse`.
+
+- Service Client (`src/services/alertService.ts`):
+  * Complete API integration using existing `apiClient` with automatic JWT Bearer token
+    injection and AppApiError handling.
+
+- Component (`src/components/AlertSeverityBadge.tsx`):
+  * Reusable severity badge and type icon mapper:
+    CRITICAL (⛔ Red), HIGH (⚠️ Orange), WARNING (⚡ Amber), NORMAL (✓ Green), INFO (ℹ Blue).
+    Icons: 🌾 FEED_QUALITY, 🌿 SILAGE_QUALITY, 🏭 STORAGE, 🩺 HEALTH_RISK, 👨‍⚕️ CONSULTATION, 🔔 GENERAL.
+
+- Screens (`src/screens/alerts/AlertListScreen.tsx` & `AlertDetailsScreen.tsx`):
+  * `AlertListScreen`:
+    - Title and subtitle
+    - Filter tabs: ALL, UNREAD, READ
+    - Dynamic unread count indicators on tabs
+    - "Mark All Read" action button with loading state
+    - Quick "Mark Read ✓" button on each unread card
+    - Pull-to-refresh and automatic focus listener reload
+    - Loading view, error banner, and empty state
+  * `AlertDetailsScreen`:
+    - Header with AlertSeverityBadge, alert type, and READ/UNREAD pill
+    - Full title, formatted timestamp, and complete descriptive message
+    - Related resource banner (e.g. TEST_RESULT #55)
+    - Non-diagnostic veterinary safety advisory box
+    - Mark as Read action button and Back to Alerts navigation
+
+- Dashboard Integration (`src/screens/dashboard/DashboardScreen.tsx`):
+  * Dynamic unread notification bell button: 🔔 with red badge showing unread count
+    fetched directly from `GET /api/alerts/unread-count` (e.g. 🔔 3 or 99+).
+  * Prominent "Notifications & Alerts" Application Module card with live unread badge.
+  * Tapping bell or module card navigates directly to `AlertListScreen`.
+
+- Navigation (`src/navigation/types.ts` & `src/navigation/AppNavigator.tsx`):
+  * Registered `AlertList`, `Alerts`, and `AlertDetails` routes in `AppStackParamList`.
+
+
+5. API ENDPOINTS
+--------------------------------------------------------------------------------
+GET  /api/alerts              - Retrieve farmer's alerts (ordered by createdAt DESC)
+GET  /api/alerts/{id}         - Retrieve specific alert (403 for cross-owner, 404 if missing)
+GET  /api/alerts/unread-count - Retrieve count of unread alerts for authenticated farmer
+PUT  /api/alerts/{id}/read    - Mark specific alert as read (403 for cross-owner)
+PUT  /api/alerts/read-all     - Mark all unread alerts as read for current farmer
+
+
+6. ALERT-GENERATION FLOW
+--------------------------------------------------------------------------------
+1. Farmer records a TestResult or ingests Visual Screening.
+2. Farmer or system calls `POST /api/assessments/test-results/{testResultId}`.
+3. Existing `QualityAssessmentService` and `RiskAssessmentService` evaluate parameters.
+4. If QualityStatus == UNSAFE:
+   -> AlertService generates CRITICAL severity alert.
+5. If RiskLevel == HIGH:
+   -> AlertService generates HIGH severity alert.
+6. If any generated Advisory has Priority.HIGH:
+   -> AlertService generates HIGH severity alert.
+7. Alerts are deduplicated against existing database entries for that entity and title.
+8. Alerts are committed to MySQL with foreign key to farm owner.
+9. Dashboard immediately reflects incremented count via `GET /api/alerts/unread-count`.
+
+
+7. SECURITY & ACCESS CONTROL
+--------------------------------------------------------------------------------
+- Unauthenticated requests to `/api/alerts/**` return HTTP 401 Unauthorized via Spring Security.
+- Farmers can only access and modify their own alerts; queries strictly filter by `user.id`.
+- Cross-owner access (`GET /api/alerts/{id}` or `PUT /api/alerts/{id}/read` for another farmer's
+  alert) immediately throws `ResourceOwnershipException`, returning HTTP 403 Forbidden.
+- Non-existent alerts throw `ResourceNotFoundException`, returning HTTP 404 Not Found.
+- Alerts belonging to one farmer are never exposed or leaked in another farmer's list or count.
+
+
+8. SCIENTIFIC SAFETY & DISCLAIMERS
+--------------------------------------------------------------------------------
+- Notifications and alerts serve strictly as a communication and workflow presentation layer.
+- No new scientific thresholds or diagnostic claims are introduced.
+- Strict disclaimers preserved across alert details and presentation:
+  "Notifications and alerts are communication and screening tools. They do not constitute
+  veterinary medical diagnoses. For clinical herd issues, always consult a certified
+  Veterinarian or Veterinary Nutritionist."
+- Non-diagnostic terminology strictly maintained: veterinarians are never called "dieticians",
+  only "Veterinarian", "Veterinary Nutritionist", or "Animal Nutrition Expert".
+
+
+9. TEST SUITES & VERIFICATION RESULTS
+--------------------------------------------------------------------------------
+A. Backend Tests:
+   - Total Tests: 84 (64 pre-existing regression + 12 unit tests + 8 integration tests)
+   - Status: All 84 passed, 0 failures, 0 errors.
+   - Test Classes:
+     * `AlertServiceUnitTest`: 12 tests covering CRUD, 403 cross-owner, 404 missing,
+       event consumption (UNSAFE, HIGH risk, HIGH advisory, GOOD no-alert).
+     * `AlertIntegrationTest`: 8 tests verifying MockMvc, Spring Security, JWT tokens,
+       HTTP status codes (401, 403, 404, 200), and MySQL persistence.
+     * Regression suites: `AssessmentEngineUnitTest` (10), `ConsultationServiceUnitTest` (20),
+       `AnalyticsServiceUnitTest` (16), `AiServiceClientUnitTest` (8), `SampleImageServiceUnitTest` (9),
+       `CattleFeedAiApplicationTests` (1).
+
+B. Frontend Tests:
+   - Total Test Suites: 30 passed, 30 total.
+   - Total Tests: 289 passed, 289 total.
+   - New Test Suites:
+     * `src/__tests__/alertService.test.ts`: 8 tests covering all API calls and error handling.
+     * `src/__tests__/m10AlertsWorkflow.test.ts`: 19 tests covering navigation, filtering,
+       unread formatting, badge thresholds, and safety terminology.
+     * Zero regression across all 28 existing test suites from M6.2 through M9.
+
+C. TypeScript Type-Check:
+   - `npm run type-check` (`tsc --noEmit`): 0 errors, 100% clean compilation.
+
+D. Live API Verification:
+   - Executed against real Spring Boot + real MySQL + JWT on localhost:8080:
+     * 401 verified on unauthenticated access
+     * Farmer A & Farmer B authentication verified
+     * UNSAFE test result evaluated and persistent CRITICAL alert generated
+     * Real-time unread count verified (> 0 after alert generation)
+     * Alert listing and detail retrieval verified
+     * Cross-owner access blocked with 403 Forbidden
+     * Missing alert blocked with 404 Not Found
+     * Cross-owner modification blocked with 403 Forbidden
+     * Mark single alert read verified (`isRead: true` in MySQL)
+     * Mark all read verified (`unreadCount: 0`)
+     * Zero alert leakage between farmers verified
+
+
+10. KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+- Alerts currently require polling/refresh (screen focus and pull-to-refresh) within
+  the mobile application; push notifications and webhooks are not part of M10.
+- Alert generation triggers during explicit assessment evaluations or advisory generation;
+  background cron schedulers are omitted per architectural guidelines.
+
+
+11. FUTURE SCOPE
+--------------------------------------------------------------------------------
+The following features are intentionally out of scope for M10 and reserved for future milestones:
+- Push notifications (Expo Notifications, FCM, APNs)
+- SMS, email, and WhatsApp dispatch infrastructure
+- Background automated scheduled tasks / crons
+- Offline local caching and offline-first queueing
+- NIR sensor instrumentation & IoT direct ingestion
+================================================================================

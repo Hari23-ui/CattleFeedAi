@@ -1,0 +1,404 @@
+================================================================================
+CattleFeedAI — Milestone 6.4: Quality, Risk & Advisory Frontend Summary
+================================================================================
+
+1. FILES INSPECTED
+------------------
+Backend Controllers, Services, DTOs, Entities, Repositories & Rules:
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AssessmentController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AdvisoryController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/QualityAssessmentService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/RiskAssessmentService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/assessment/AdvisoryService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/rule/RuleEngineService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/rule/RuleRegistry.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/QualityAssessmentResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/ParameterAssessmentDto.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/RiskAssessmentResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/RiskIndicatorDto.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/AdvisoryResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/assessment/AssessmentSummaryResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/Advisory.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/TestResult.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/QualityStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/RiskLevel.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/Severity.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/Priority.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/AdvisoryCategory.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/AdvisoryType.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/AssessmentParameter.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/AnalysisSource.java
+- backend/cattle-feed-api/test_assessment_engine.ps1
+
+Frontend Files Inspected & Reused:
+- frontend/cattle-feed-app/src/constants/theme.ts
+- frontend/cattle-feed-app/src/constants/config.ts
+- frontend/cattle-feed-app/src/services/apiClient.ts
+- frontend/cattle-feed-app/src/components/AppButton.tsx
+- frontend/cattle-feed-app/src/components/AppCard.tsx
+- frontend/cattle-feed-app/src/components/ErrorMessage.tsx
+- frontend/cattle-feed-app/src/components/LoadingView.tsx
+- frontend/cattle-feed-app/src/components/ScreenContainer.tsx
+- frontend/cattle-feed-app/src/screens/testResults/TestResultDetailsScreen.tsx
+- frontend/cattle-feed-app/src/screens/dashboard/DashboardScreen.tsx
+- frontend/cattle-feed-app/src/navigation/types.ts
+- frontend/cattle-feed-app/src/navigation/AppNavigator.tsx
+- frontend/cattle-feed-app/src/utils/errorHandler.ts
+
+
+2. ACTUAL M5 BACKEND ARCHITECTURE DISCOVERED
+-------------------------------------------
+The Spring Boot M5 architecture decouples parameter storage from scientific evaluation:
+1. TestResult stores 11 physical/chemical measurements (Moisture, Crude Protein, Fiber, Energy Value, Aflatoxin, Mycotoxin, pH, Mineral Status, Adulteration, Mould Detected, Spoilage Detected).
+2. QualityAssessmentService runs a configurable RuleEngineService over the TestResult parameters. Null measurements are strictly treated as "not available" (never converted to 0 or normal).
+3. QualityStatus is evaluated as GOOD, ACCEPTABLE, NEEDS_ATTENTION, UNSAFE, or INSUFFICIENT_DATA.
+4. RiskAssessmentService groups triggered rules into Contamination, Nutritional, and Storage/Spoilage risk categories and computes overall RiskLevel (LOW, MEDIUM, HIGH). Non-diagnostic terminology is enforced via official screening disclaimers.
+5. AdvisoryService converts identified risk indicators into prioritized herd advisories (HIGH, MEDIUM, LOW) and automatically persists them to the database when the test sample is associated with an animal.
+6. AdvisoryController manages listing, single-item retrieval, and marking advisories as read (PUT /api/advisories/{id}/read).
+
+
+3. ACTUAL ENDPOINTS DISCOVERED
+------------------------------
+Quality & Risk Assessment (AssessmentController):
+- GET  /api/assessments/test-results/{testResultId}
+  Evaluates 11 parameters from a test result against baseline rules and returns QualityAssessmentResponse.
+- GET  /api/assessments/test-results/{testResultId}/risk
+  Identifies contamination risks, nutritional imbalances, and storage/spoilage risks and returns RiskAssessmentResponse.
+- POST /api/assessments/test-results/{testResultId}
+  Evaluates quality and risk layers and generates/persists advisories for the animal associated with the sample, returning AssessmentSummaryResponse.
+- GET  /api/assessments/feed-samples/{feedSampleId}
+  Evaluates the most recent test result recorded for a feed sample.
+- GET  /api/assessments/silage-samples/{silageSampleId}
+  Evaluates the most recent test result recorded for a silage sample.
+
+Advisories (AdvisoryController):
+- GET  /api/advisories
+  Retrieves generated advisories for the authenticated farmer's herd, optionally filtered by ?animalId={id}&isRead={boolean}.
+- GET  /api/advisories/{id}
+  Retrieves a specific advisory message and recommended action by ID.
+- PUT  /api/advisories/{id}/read
+  Updates an advisory status to read (isRead = true).
+
+
+4. ACTUAL DTOS / ENUMS DISCOVERED
+---------------------------------
+QualityAssessmentResponse:
+  - testResultId: Long
+  - sampleType: String ("FEED", "SILAGE", "UNKNOWN")
+  - sampleId: Long
+  - sampleCode: String
+  - qualityStatus: QualityStatus
+  - explanation: String
+  - parameters: List<ParameterAssessmentDto>
+  - triggeredRulesCount: int
+  - evaluationTimestamp: LocalDateTime
+  - disclaimer: String
+
+ParameterAssessmentDto:
+  - parameter: AssessmentParameter
+  - measuredValue: Object (Number | String | Boolean | null)
+  - unit: String
+  - status: String ("NORMAL", "WARNING", "HIGH", "CRITICAL", "NOT_AVAILABLE")
+  - evaluationNote: String
+
+RiskAssessmentResponse:
+  - testResultId: Long
+  - sampleCode: String
+  - overallRiskLevel: RiskLevel
+  - allRisks: List<RiskIndicatorDto>
+  - contaminationRisks: List<RiskIndicatorDto>
+  - nutritionalImbalances: List<RiskIndicatorDto>
+  - storageSpoilageRisks: List<RiskIndicatorDto>
+  - evaluationTimestamp: LocalDateTime
+  - screeningDisclaimer: String
+
+RiskIndicatorDto:
+  - category: AdvisoryCategory
+  - riskTitle: String
+  - severity: Severity
+  - description: String
+  - mitigationRecommendation: String
+  - detectedParameter: AssessmentParameter
+
+AdvisoryResponse:
+  - id: Long
+  - animalId: Long
+  - animalTag: String
+  - category: AdvisoryCategory
+  - priority: Priority
+  - title: String
+  - message: String
+  - recommendedAction: String
+  - isRead: Boolean
+  - createdAt: LocalDateTime
+
+AssessmentSummaryResponse:
+  - qualityAssessment: QualityAssessmentResponse
+  - riskAssessment: RiskAssessmentResponse
+  - generatedAdvisories: List<AdvisoryResponse>
+
+Enums:
+  - QualityStatus: GOOD, ACCEPTABLE, NEEDS_ATTENTION, UNSAFE, INSUFFICIENT_DATA
+  - RiskLevel: LOW, MEDIUM, HIGH, UNKNOWN
+  - Severity: INFO, NORMAL, WARNING, HIGH, CRITICAL
+  - Priority: LOW, MEDIUM, HIGH
+  - AdvisoryCategory: FEED, SILAGE, NUTRITION, CONTAMINATION, STORAGE, HEALTH_SCREENING, EXPERT_CONSULTATION
+  - AssessmentParameter: MOISTURE, CRUDE_PROTEIN, FIBER, ENERGY_VALUE, AFLATOXIN, MYCOTOXIN, PH, MINERAL_STATUS, ADULTERATION, MOULD_DETECTED, SPOILAGE_DETECTED
+
+
+5. FILES CREATED
+----------------
+Models:
+- frontend/cattle-feed-app/src/models/advisory.ts
+- frontend/cattle-feed-app/src/models/risk.ts
+- frontend/cattle-feed-app/src/models/assessment.ts
+
+Components:
+- frontend/cattle-feed-app/src/components/QualityStatusBadge.tsx
+- frontend/cattle-feed-app/src/components/RiskIndicatorCard.tsx
+
+Screens:
+- frontend/cattle-feed-app/src/screens/assessments/AssessmentResultScreen.tsx
+- frontend/cattle-feed-app/src/screens/advisories/AdvisoryListScreen.tsx
+- frontend/cattle-feed-app/src/screens/advisories/AdvisoryDetailsScreen.tsx
+
+Unit & Presentation Tests:
+- frontend/cattle-feed-app/src/__tests__/assessmentService.test.ts
+- frontend/cattle-feed-app/src/__tests__/advisoryService.test.ts
+- frontend/cattle-feed-app/src/__tests__/m64AssessmentPresentation.test.ts
+- frontend/cattle-feed-app/src/__tests__/m64Navigation.test.ts
+
+Live Verification:
+- verify_m64_real_backend.mjs
+
+
+6. FILES MODIFIED
+-----------------
+- frontend/cattle-feed-app/src/models/index.ts (re-exported advisory, risk, and assessment models)
+- frontend/cattle-feed-app/src/services/assessmentService.ts (implemented real backend API methods)
+- frontend/cattle-feed-app/src/services/advisoryService.ts (implemented real backend API methods)
+- frontend/cattle-feed-app/src/components/index.ts (re-exported QualityStatusBadge and RiskIndicatorCard)
+- frontend/cattle-feed-app/src/screens/assessments/index.ts (exported AssessmentResultScreen)
+- frontend/cattle-feed-app/src/screens/advisories/index.ts (exported AdvisoryListScreen and AdvisoryDetailsScreen)
+- frontend/cattle-feed-app/src/screens/index.ts (re-exported assessments and advisories)
+- frontend/cattle-feed-app/src/navigation/types.ts (added AssessmentResult, AdvisoryList, AdvisoryDetails param types)
+- frontend/cattle-feed-app/src/navigation/AppNavigator.tsx (registered M6.4 screens in navigation stack)
+- frontend/cattle-feed-app/src/screens/testResults/TestResultDetailsScreen.tsx (added "View Quality Assessment" action section)
+- frontend/cattle-feed-app/src/screens/dashboard/DashboardScreen.tsx (activated "Quality & Risk Advisories" module card)
+
+
+7. TYPESCRIPT MODELS
+--------------------
+Created `src/models/assessment.ts`, `src/models/risk.ts`, and `src/models/advisory.ts`.
+- QualityStatus: strictly 'GOOD' | 'ACCEPTABLE' | 'NEEDS_ATTENTION' | 'UNSAFE' | 'INSUFFICIENT_DATA'
+- AssessmentParameter: strictly the 11 backend parameters
+- ParameterAssessmentDto: typed measuredValue as unknown to preserve numbers, booleans, and nulls
+- RiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN'
+- Severity: 'INFO' | 'NORMAL' | 'WARNING' | 'HIGH' | 'CRITICAL'
+- AdvisoryCategory: matches backend enum
+- Priority: 'LOW' | 'MEDIUM' | 'HIGH'
+- AdvisoryResponse: matches backend DTO exactly
+
+
+8. SERVICES
+-----------
+`assessmentService.ts`:
+- getQualityAssessment(testResultId) -> GET /api/assessments/test-results/:id
+- getRiskAssessment(testResultId) -> GET /api/assessments/test-results/:id/risk
+- evaluateAndGenerateAdvisories(testResultId) -> POST /api/assessments/test-results/:id
+- getLatestFeedSampleAssessment(feedSampleId) -> GET /api/assessments/feed-samples/:id
+- getLatestSilageSampleAssessment(silageSampleId) -> GET /api/assessments/silage-samples/:id
+
+`advisoryService.ts`:
+- getAdvisories(params) -> GET /api/advisories (supports optional animalId and isRead)
+- getAdvisoryById(id) -> GET /api/advisories/:id
+- markAsRead(id) -> PUT /api/advisories/:id/read
+
+All services use centralized `apiClient.ts` with automatic Bearer JWT injection and unified `AppApiError` handling.
+
+
+9. SCREENS / COMPONENTS
+-----------------------
+- `QualityStatusBadge.tsx`:
+  Pure presentation component. Receives QualityStatus from backend; does not calculate status. Displays conservative, non-diagnostic descriptions.
+- `RiskIndicatorCard.tsx`:
+  Renders single backend-derived RiskIndicatorDto. Displays category badge, severity badge, title, description, detected parameter, and recommended mitigation action.
+- `AssessmentResultScreen.tsx`:
+  Comprehensive farmer-friendly dashboard showing overall quality, 11 evaluated parameters with individual status badges, categorized risk screening cards, and an option to trigger advisory generation and view generated recommendations.
+- `AdvisoryListScreen.tsx`:
+  Farmer herd advisory list with filter tabs (All / Unread / Read), priority badges (HIGH/MEDIUM/LOW), animal tags, and instant "Mark Read" action.
+- `AdvisoryDetailsScreen.tsx`:
+  Detailed recommendation screen with full mitigation guidance, animal details, timestamp, read status toggle, and screening disclaimer.
+
+
+10. TESTRESULT -> ASSESSMENT INTEGRATION
+----------------------------------------
+In `TestResultDetailsScreen.tsx`, added a dedicated "Quality & Risk Assessment" card:
+- Displays summary explanation of rule evaluation
+- Contains a prominent "🛡️ View Quality Assessment →" button
+- Navigates seamlessly to `AssessmentResultScreen` passing `{ testResultId, sampleCode }`
+
+
+11. RISK UI
+-----------
+Risks are grouped into backend categories:
+- Contamination Risks (e.g. Aflatoxin, Mycotoxin, Adulteration)
+- Nutritional Imbalances (e.g. Low Crude Protein, Fiber imbalance)
+- Storage & Spoilage Risks (e.g. Mould, Spoilage, Silage pH deviation)
+When no risks are detected, displays clean positive status ("No Elevated Risk Indicators").
+Screening disclaimer from backend is clearly displayed.
+
+
+12. ADVISORY UI
+---------------
+- Shows prioritized herd advisories from backend.
+- Displays priority badge (HIGH in red, MEDIUM in amber, LOW in green).
+- Displays linked animal tag if the sample was tied to a cattle record.
+- Allows marking an advisory as read with instant optimistic UI update.
+- Empty states for zero advisories or all read.
+
+
+13. INSUFFICIENT DATA HANDLING
+------------------------------
+- Null or missing measurements in test results are rendered as "Not Available".
+- Missing values are NEVER coerced to 0, false, "Good", or "Normal".
+- When a test result lacks required parameters, backend returns QualityStatus.INSUFFICIENT_DATA and frontend displays the "Insufficient Data" badge with clear explanation that additional lab metrics are needed.
+
+
+14. ERROR HANDLING
+------------------
+- Handled HTTP 400, 401, 403, 404, 409, 500, network timeouts, and offline states.
+- Reuses existing `ErrorMessage.tsx`, `LoadingView.tsx`, and `getFarmerFriendlyErrorMessage()`.
+- Unauthorized requests prompt authentication flow; forbidden requests show ownership access denial; not found shows resource missing; server errors show friendly retry state.
+
+
+15. NAVIGATION CHANGES
+----------------------
+Added to `AppStackParamList`:
+- `AssessmentResult: { testResultId: number; sampleCode?: string }`
+- `AdvisoryList: { animalId?: number } | undefined`
+- `AdvisoryDetails: { advisoryId: number }`
+- Maintained aliases `Assessments` and `Advisories` to prevent breaking existing navigation.
+- All M6.1, M6.2, and M6.3 routes remain intact.
+
+
+16. TESTS ADDED
+---------------
+Added 4 new test suites containing 38 new unit tests:
+1. `assessmentService.test.ts` (7 tests):
+   - Endpoint paths, payloads, response mapping, 404, 403, 401 error propagation.
+2. `advisoryService.test.ts` (6 tests):
+   - Query parameter assembly, single retrieval, mark-as-read, 500/404/403 error handling.
+3. `m64AssessmentPresentation.test.ts` (19 tests):
+   - Conservative QualityStatus mapping (GOOD, ACCEPTABLE, NEEDS_ATTENTION, UNSAFE, INSUFFICIENT_DATA)
+   - Nullable parameter handling (null -> 'Not Available', never 0 or 'Safe')
+   - Boolean flag formatting ('Detected ⚠️' vs 'Not Detected ✓')
+   - Risk indicator grouping (Contamination, Nutritional, Storage)
+   - Advisory prioritization and non-diagnostic phrasing
+4. `m64Navigation.test.ts` (6 tests):
+   - Dashboard -> AdvisoryList
+   - TestResultDetails -> AssessmentResult
+   - AssessmentResult -> AdvisoryList
+   - AdvisoryList -> AdvisoryDetails
+   - Route preservation for FeedList and SilageList
+
+
+17. TYPE-CHECK RESULT
+---------------------
+`npm run type-check`
+Output: 0 errors
+All TypeScript files pass strict checking.
+
+
+18. JEST RESULT
+---------------
+`npm test -- --runInBand`
+Output:
+Test Suites: 19 passed, 19 total
+Tests:       180 passed, 180 total
+Snapshots:   0 total
+Time:        4.496 s
+Baseline was 142/142 tests passing; final is 180/180 tests passing (38 new tests, 0 regressions).
+
+
+19. LIVE BACKEND VERIFICATION RESULT
+------------------------------------
+`node verify_m64_real_backend.mjs` against live Spring Boot on http://localhost:8080:
+Output:
+===============================================================
+M6.4 LIVE BACKEND VERIFICATION COMPLETE:
+Passed: 50/50
+Failed: 0/50
+===============================================================
+Verified sequence:
+- User registration and JWT authentication
+- Farm and Animal creation
+- Clean feed test -> Quality status GOOD, 0 rules, LOW risk, 0 risk indicators
+- Hazardous feed test -> Quality status UNSAFE, triggered rules count: 7, HIGH risk, contamination & storage risks
+- Advisory generation via POST /api/assessments/test-results/:id -> Advisories generated and linked to animal
+- Query persisted advisories via GET /api/advisories
+- Query single advisory via GET /api/advisories/:id
+- Mark advisory as read via PUT /api/advisories/:id/read -> isRead: true
+- Sparse test result (all null parameters) -> Quality status INSUFFICIENT_DATA, all 11 parameters marked NOT_AVAILABLE with null measuredValue
+- Silage test result (pH 5.2, moisture 74.0) -> Quality status NEEDS_ATTENTION
+- Latest silage sample assessment via GET /api/assessments/silage-samples/:id
+- Latest feed sample assessment via GET /api/assessments/feed-samples/:id
+- Unauthorized request rejection (401)
+- Cross-user resource ownership access control (403)
+- Nonexistent test result rejection (404)
+
+Regression Verification:
+`node verify_m63_real_backend.mjs`:
+Passed: 18/18 steps passed successfully.
+
+
+20. SCIENTIFIC-RULE BOUNDARY VERIFICATION
+-----------------------------------------
+A codebase ripgrep search was conducted across `frontend/cattle-feed-app/src` for comparisons such as:
+- `aflatoxin > ...` -> 0 matches
+- `moisture > ...` -> 0 matches
+- `crudeProtein < ...` -> 0 matches
+- `ph > ...` -> 0 matches
+- `fiber > ...` -> 0 matches
+Frontend strictly performs NO scientific evaluation. All quality classifications, risk detections, rule triggers, and advisory texts are computed entirely by the backend Spring Boot RuleEngineService.
+
+
+21. WARNINGS / ERRORS
+---------------------
+None. Zero compile errors, zero runtime errors, zero linter warnings.
+
+
+22. CONFIRMATION BACKEND UNCHANGED
+----------------------------------
+Confirmed: 0 files modified in `backend/cattle-feed-api`. Backend code remains 100% untouched.
+
+
+23. CONFIRMATION DATABASE UNCHANGED
+-----------------------------------
+Confirmed: 0 schema migrations or modifications performed on MySQL database `cattlefeedai`.
+
+
+24. CONFIRMATION JWT / SECURITY UNCHANGED
+-----------------------------------------
+Confirmed: Security filter chain, JWT authentication, and user ownership validation remain unmodified.
+
+
+25. CONFIRMATION NO FAKE PRODUCTION DATA
+----------------------------------------
+Confirmed: All data displayed is fetched from real Spring Boot endpoints and MySQL database records.
+
+
+26. EXACT SCOPE BOUNDARY
+------------------------
+Milestone 6.4 is complete. In strict adherence to project guidelines, development STOPPED at this milestone:
+- M6.5 Animal Health Risk Screening UI: NOT implemented (remains for M6.5)
+- M6.6 Camera / Webcam capture: NOT implemented (remains for M6.6)
+- M7 AI / Computer Vision: NOT implemented
+- M8 Expert Consultation: NOT implemented
+- M9 Analytics: NOT implemented
+- M10 IoT / NIR: NOT implemented
+- M11 Offline / Multilingual: NOT implemented
+
+================================================================================
+END OF SUMMARY
+================================================================================

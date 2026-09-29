@@ -1,0 +1,132 @@
+================================================================================
+CattleFeedAI — Milestone 6.2: Farm & Animal Management Summary
+================================================================================
+Timestamp: 2026-09-27T12:07:00+05:30
+Status: COMPLETED & VERIFIED
+
+--------------------------------------------------------------------------------
+1. OBJECTIVE & SCOPE
+--------------------------------------------------------------------------------
+Milestone 6.2 implements frontend Farm & Animal Management in React Native (Expo SDK 57, React 19, TypeScript) connected to existing Spring Boot CRUD APIs.
+Ownership hierarchy: User -> Farm -> Animal.
+All displayed data originates from the live backend.
+Zero modifications were made to the backend, database, or JWT security.
+
+--------------------------------------------------------------------------------
+2. FILES INSPECTED
+--------------------------------------------------------------------------------
+Backend:
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/FarmRequest.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/FarmResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/AnimalRequest.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/dto/AnimalResponse.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/FarmController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/controller/AnimalController.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/FarmService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/service/AnimalService.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/exception/GlobalExceptionHandler.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/Gender.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/LactationStage.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/PregnancyStatus.java
+- backend/cattle-feed-api/src/main/java/com/cattlefeedai/api/entity/enums/FeedIntakeStatus.java
+
+Frontend:
+- frontend/cattle-feed-app/src/services/apiClient.ts
+- frontend/cattle-feed-app/src/services/farmService.ts
+- frontend/cattle-feed-app/src/services/animalService.ts
+- frontend/cattle-feed-app/src/models/index.ts
+- frontend/cattle-feed-app/src/navigation/types.ts
+- frontend/cattle-feed-app/src/navigation/AppNavigator.tsx
+- frontend/cattle-feed-app/src/screens/dashboard/DashboardScreen.tsx
+- frontend/cattle-feed-app/src/components/index.ts
+- frontend/cattle-feed-app/src/utils/validation.ts
+- frontend/cattle-feed-app/src/utils/errorHandler.ts
+
+--------------------------------------------------------------------------------
+3. FILES CREATED
+--------------------------------------------------------------------------------
+TypeScript Models:
+- src/models/farm.ts                 -> Farm, CreateFarmRequest, UpdateFarmRequest
+- src/models/animal.ts               -> Animal, CreateAnimalRequest, UpdateAnimalRequest, Gender, LactationStage, PregnancyStatus, FeedIntakeStatus
+
+UI Components:
+- src/components/OptionSelector.tsx   -> Accessible, high-contrast segmented option picker with 48dp touch targets
+
+Farm Screens:
+- src/screens/farm/FarmListScreen.tsx    -> Farmer's farm list, pull-to-refresh, empty state, API error with retry, card detail links
+- src/screens/farm/FarmDetailsScreen.tsx -> Full farm profile, location info, livestock count, edit/delete actions, delete confirmation dialog
+- src/screens/farm/AddFarmScreen.tsx     -> Create farm form, field validation matching FarmRequest, loading state, error banner
+- src/screens/farm/EditFarmScreen.tsx    -> Edit farm form, pre-filled data, validation, update API call
+
+Animal Screens:
+- src/screens/animals/AnimalListScreen.tsx    -> Livestock herd list, farm association, stage & yield metrics, farm filter pills, pull-to-refresh
+- src/screens/animals/AnimalDetailsScreen.tsx -> Animal profile structured into Basic Info, Production Info, and Feed Info sections, edit/delete actions
+- src/screens/animals/AddAnimalScreen.tsx     -> Register animal form, farm selector, enum selectors, duplicate-tag error translation
+- src/screens/animals/EditAnimalScreen.tsx    -> Edit animal form, pre-filled profile, validation, update API call
+
+Unit Tests:
+- src/__tests__/farmService.test.ts           -> 7 tests: POST /api/farms, GET /api/farms, GET /api/farms/:id, PUT /api/farms/:id, DELETE /api/farms/:id, 403, 404
+- src/__tests__/animalService.test.ts         -> 7 tests: POST /api/animals, GET /api/animals, GET /api/animals?farmId=X, GET /api/animals/:id, PUT /api/animals/:id, DELETE /api/animals/:id, 409 conflict
+- src/__tests__/farmValidation.test.ts        -> 11 tests: Farm form, field lengths, required name, optional location, district, state, pincode
+- src/__tests__/animalValidation.test.ts      -> 18 tests: Animal form, required tag/gender/farmId, date validation (calendar & future checks), numeric metrics
+- src/__tests__/m62NavigationAndDeletion.test.ts -> 14 tests: Dashboard to Farms/Animals navigation, Farm Details, Animal Details, delete confirmation logic, error mappings
+
+--------------------------------------------------------------------------------
+4. FILES MODIFIED
+--------------------------------------------------------------------------------
+- src/models/index.ts                -> Re-exported farm and animal models
+- src/services/farmService.ts        -> Implemented complete backend CRUD API calls
+- src/services/animalService.ts      -> Implemented complete backend CRUD API calls with farmId filter
+- src/utils/validation.ts            -> Added farm & animal validators matching backend bean validation constraints
+- src/utils/errorHandler.ts          -> Added translation for 409 duplicate tag conflict, 403 permission denied, and 404 not found
+- src/components/AppButton.tsx       -> Added size prop ('small' | 'medium' | 'large')
+- src/components/ScreenContainer.tsx -> Added refreshControl prop support for ScrollView
+- src/components/index.ts            -> Exported OptionSelector
+- src/navigation/types.ts            -> Added M6.2 routes: FarmList, FarmDetails, AddFarm, EditFarm, AnimalList, AnimalDetails, AddAnimal, EditAnimal
+- src/navigation/AppNavigator.tsx    -> Registered all farm and animal screens
+- src/screens/farm/index.ts          -> Exported all farm screens
+- src/screens/animals/index.ts       -> Exported all animal screens
+- src/screens/index.ts               -> Exported farm and animal barrels
+- src/screens/dashboard/DashboardScreen.tsx -> Integrated live farm and animal counts from backend, quick actions (+ Add Farm, + Add Animal), and active M6.2 module card
+
+--------------------------------------------------------------------------------
+5. BACKEND APIS CONNECTED
+--------------------------------------------------------------------------------
+Farm Management:
+- POST   /api/farms        -> Create farm (authenticated farmer derived from JWT)
+- GET    /api/farms        -> List farmer's owned farms
+- GET    /api/farms/{id}   -> Get farm details with ownership check
+- PUT    /api/farms/{id}   -> Update farm details
+- DELETE /api/farms/{id}   -> Delete farm and cascade delete associated animals
+
+Animal Management:
+- POST   /api/animals              -> Register animal under owned farm (verifies tag uniqueness in farm)
+- GET    /api/animals              -> List all animals owned across user's farms
+- GET    /api/animals?farmId={id}  -> List animals belonging to specific owned farm
+- GET    /api/animals/{id}         -> Get animal details with ownership check
+- PUT    /api/animals/{id}         -> Update animal profile and production records
+- DELETE /api/animals/{id}         -> Delete animal profile
+
+--------------------------------------------------------------------------------
+6. VERIFICATION RESULTS
+--------------------------------------------------------------------------------
+- TypeScript type-check: 0 errors (`npm run type-check` -> exit code 0)
+- Jest unit tests: 92/92 passing across 10 test suites (`npm test` -> exit code 0)
+- Live manual tests against real Spring Boot backend: 18/18 steps passed (`verify_m62_real_backend.mjs`)
+  * Farmer registration & JWT login
+  * Dashboard live counts fetch
+  * Farm creation (POST /api/farms)
+  * Farm list retrieval (GET /api/farms)
+  * Farm details view (GET /api/farms/:id)
+  * Farm update (PUT /api/farms/:id)
+  * Farm refresh verification
+  * Farm deletion (DELETE /api/farms/:id -> 204, verified 404)
+  * Animal creation (POST /api/animals)
+  * Animal list retrieval (GET /api/animals)
+  * Farm-filtered animals retrieval (GET /api/animals?farmId=X)
+  * Animal details view (GET /api/animals/:id)
+  * Animal update (PUT /api/animals/:id)
+  * Duplicate animal tag detection (409 Conflict with farmer-friendly message)
+  * Animal deletion (DELETE /api/animals/:id -> 204, verified 404)
+  * Unauthorized request verification (401 Unauthorized)
+================================================================================
