@@ -1,48 +1,24 @@
 # =============================================================================
 # CattleFeedAI — Render Infrastructure as Code Blueprint
+# Database Provider: Supabase Managed PostgreSQL (External Managed Service)
 # Reference: https://render.com/docs/blueprint-spec
 # =============================================================================
 # Architecture:
-#   1. cattlefeedai-mysql    : Private MySQL 8.0 service with persistent disk
-#   2. cattlefeedai-ai       : FastAPI AI Microservice (Python, Uvicorn, Visual CV)
-#   3. cattlefeedai-backend  : Spring Boot 3.2.5 REST API (Java 17, Docker multi-stage)
-#   4. cattlefeedai-frontend : Expo / React Native Web Static Site (type: web, runtime: static)
+#   1. cattlefeedai-ai       : FastAPI AI Microservice (Python, Uvicorn, Visual CV)
+#   2. cattlefeedai-backend  : Spring Boot 3.2.5 REST API (Java 17, Docker multi-stage)
+#   3. cattlefeedai-frontend : Expo / React Native Web Static Site (type: web, runtime: static)
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # 1. MySQL 8 Database (Private Service with Persistent Disk)
-  # ---------------------------------------------------------------------------
-  - type: pserv
-    name: cattlefeedai-mysql
-    runtime: image
-    image:
-      url: docker.io/library/mysql:8.0
-    region: singapore
-    plan: starter
-    disk:
-      name: mysql-data
-      mountPath: /var/lib/mysql
-      sizeGB: 10
-    envVars:
-      - key: MYSQL_DATABASE
-        value: cattlefeedai
-      - key: MYSQL_USER
-        value: cattlefeed
-      - key: MYSQL_PASSWORD
-        generateValue: true
-      - key: MYSQL_ROOT_PASSWORD
-        generateValue: true
-
-  # ---------------------------------------------------------------------------
-  # 2. FastAPI AI Screening Service (Visual Quality & Anomaly Screening)
+  # 1. FastAPI AI Screening Service (Visual Quality & Anomaly Screening)
   # ---------------------------------------------------------------------------
   - type: web
     name: cattlefeedai-ai
     runtime: python
     rootDir: ai-service
     region: singapore
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
@@ -59,7 +35,7 @@ services:
         value: "false"
 
   # ---------------------------------------------------------------------------
-  # 3. Spring Boot Backend REST API (Java 17 / Spring Boot 3.2.5)
+  # 2. Spring Boot Backend REST API (Java 17 / Spring Boot 3.2.5)
   # ---------------------------------------------------------------------------
   - type: web
     name: cattlefeedai-backend
@@ -67,31 +43,15 @@ services:
     rootDir: backend/cattle-feed-api
     dockerfilePath: ./Dockerfile
     region: singapore
-    plan: starter
+    plan: free
     healthCheckPath: /health
     envVars:
-      - key: DB_HOST
-        fromService:
-          type: pserv
-          name: cattlefeedai-mysql
-          property: host
-      - key: DB_PORT
-        fromService:
-          type: pserv
-          name: cattlefeedai-mysql
-          property: port
-      - key: DB_NAME
-        value: cattlefeedai
-      - key: DB_USERNAME
-        fromService:
-          type: pserv
-          name: cattlefeedai-mysql
-          envVarKey: MYSQL_USER
-      - key: DB_PASSWORD
-        fromService:
-          type: pserv
-          name: cattlefeedai-mysql
-          envVarKey: MYSQL_PASSWORD
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
       - key: AI_SERVICE_HOST
         fromService:
           type: web
@@ -112,7 +72,7 @@ services:
         value: uploads/sample-images
 
   # ---------------------------------------------------------------------------
-  # 4. Expo / React Native Web Frontend (Static Site on Render CDN)
+  # 3. Expo / React Native Web Frontend (Static Site on Render CDN)
   # ---------------------------------------------------------------------------
   - type: web
     name: cattlefeedai-frontend
