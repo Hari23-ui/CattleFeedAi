@@ -1,0 +1,6 @@
+target/
+uploads/
+*.ps1
+.git
+.idea
+.vscode

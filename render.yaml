@@ -1,0 +1,131 @@
+# =============================================================================
+# CattleFeedAI — Render Infrastructure as Code Blueprint
+# Reference: https://render.com/docs/blueprint-spec
+# =============================================================================
+# Architecture:
+#   1. cattlefeedai-mysql    : Private MySQL 8.0 service with persistent disk
+#   2. cattlefeedai-ai       : FastAPI AI Microservice (Python, Uvicorn, Visual CV)
+#   3. cattlefeedai-backend  : Spring Boot 3.2.5 REST API (Java 17, Docker multi-stage)
+#   4. cattlefeedai-frontend : Expo / React Native Web Static Site (type: web, runtime: static)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. MySQL 8 Database (Private Service with Persistent Disk)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: cattlefeedai-mysql
+    runtime: image
+    image:
+      url: docker.io/library/mysql:8.0
+    region: singapore
+    plan: starter
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_DATABASE
+        value: cattlefeedai
+      - key: MYSQL_USER
+        value: cattlefeed
+      - key: MYSQL_PASSWORD
+        generateValue: true
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+
+  # ---------------------------------------------------------------------------
+  # 2. FastAPI AI Screening Service (Visual Quality & Anomaly Screening)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: cattlefeedai-ai
+    runtime: python
+    rootDir: ai-service
+    region: singapore
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.11
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MAX_IMAGE_SIZE_MB
+        value: "10"
+      - key: MODEL_ENABLED
+        value: "false"
+
+  # ---------------------------------------------------------------------------
+  # 3. Spring Boot Backend REST API (Java 17 / Spring Boot 3.2.5)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: cattlefeedai-backend
+    runtime: docker
+    rootDir: backend/cattle-feed-api
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: DB_HOST
+        fromService:
+          type: pserv
+          name: cattlefeedai-mysql
+          property: host
+      - key: DB_PORT
+        fromService:
+          type: pserv
+          name: cattlefeedai-mysql
+          property: port
+      - key: DB_NAME
+        value: cattlefeedai
+      - key: DB_USERNAME
+        fromService:
+          type: pserv
+          name: cattlefeedai-mysql
+          envVarKey: MYSQL_USER
+      - key: DB_PASSWORD
+        fromService:
+          type: pserv
+          name: cattlefeedai-mysql
+          envVarKey: MYSQL_PASSWORD
+      - key: AI_SERVICE_HOST
+        fromService:
+          type: web
+          name: cattlefeedai-ai
+          property: host
+      - key: AI_SERVICE_PORT
+        fromService:
+          type: web
+          name: cattlefeedai-ai
+          property: port
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: APP_UPLOAD_DIR
+        value: uploads/sample-images
+
+  # ---------------------------------------------------------------------------
+  # 4. Expo / React Native Web Frontend (Static Site on Render CDN)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: cattlefeedai-frontend
+    runtime: static
+    rootDir: frontend/cattle-feed-app
+    buildCommand: npm install && npx expo export -p web
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: EXPO_PUBLIC_API_BASE_URL
+        sync: false
