@@ -6,6 +6,7 @@ import com.cattlefeedai.api.entity.enums.*;
 import com.cattlefeedai.api.repository.*;
 import com.cattlefeedai.api.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -142,6 +143,36 @@ public class FeedPlanIntegrationTest {
         feedA = feedSampleRepository.save(feedA);
     }
 
+    @AfterEach
+    void tearDown() {
+        if (feedA != null && feedA.getId() != null) {
+            feedPlanRepository.findAll().stream()
+                    .filter(fp -> fp.getFeedSample() != null && fp.getFeedSample().getId().equals(feedA.getId()))
+                    .forEach(feedPlanRepository::delete);
+            feedSampleRepository.delete(feedA);
+        }
+        if (animalA != null && animalA.getId() != null) {
+            feedPlanRepository.findAll().stream()
+                    .filter(fp -> fp.getAnimal() != null && fp.getAnimal().getId().equals(animalA.getId()))
+                    .forEach(feedPlanRepository::delete);
+            animalRepository.delete(animalA);
+        }
+        if (animalB != null && animalB.getId() != null) {
+            feedPlanRepository.findAll().stream()
+                    .filter(fp -> fp.getAnimal() != null && fp.getAnimal().getId().equals(animalB.getId()))
+                    .forEach(feedPlanRepository::delete);
+            animalRepository.delete(animalB);
+        }
+        if (farmA != null && farmA.getId() != null) {
+            farmRepository.delete(farmA);
+        }
+        if (farmB != null && farmB.getId() != null) {
+            farmRepository.delete(farmB);
+        }
+        userRepository.findByEmail("farmerA_fp_test@m11.com").ifPresent(userRepository::delete);
+        userRepository.findByEmail("farmerB_fp_test@m11.com").ifPresent(userRepository::delete);
+    }
+
     @Test
     @DisplayName("Unauthenticated access to /api/feed-plans returns 401")
     void test01_UnauthenticatedAccess_Returns401() throws Exception {
@@ -150,7 +181,7 @@ public class FeedPlanIntegrationTest {
     }
 
     @Test
-    @DisplayName("Create FeedPlan returns 201 Created and persists in MySQL")
+    @DisplayName("Create FeedPlan returns 201 Created and persists in database")
     void test02_CreateFeedPlan_Success() throws Exception {
         FeedPlanRequest req = FeedPlanRequest.builder()
                 .planName("Integration Test Plan Alpha")

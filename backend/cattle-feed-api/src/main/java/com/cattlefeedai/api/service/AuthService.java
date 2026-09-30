@@ -145,7 +145,7 @@ public class AuthService {
                     .role(user.getRole().name())
                     .build();
 
-        } catch (BadCredentialsException e) {
+        } catch (org.springframework.security.core.AuthenticationException e) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
     }

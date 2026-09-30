@@ -16,6 +16,7 @@ import com.cattlefeedai.api.repository.StorageUnitRepository;
 import com.cattlefeedai.api.repository.UserRepository;
 import com.cattlefeedai.api.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -129,6 +130,39 @@ public class StorageUnitIntegrationTest {
         unitA.setDeviceId("TEST-ESP32-001");
         unitA.setFarm(farmA);
         unitA = storageUnitRepository.save(unitA);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (unitA != null && unitA.getId() != null) {
+            sensorReadingRepository.findByStorageUnitId(unitA.getId())
+                    .forEach(sensorReadingRepository::delete);
+            storageUnitRepository.delete(unitA);
+        }
+        if (farmA != null && farmA.getId() != null) {
+            storageUnitRepository.findByFarmId(farmA.getId()).forEach(u -> {
+                sensorReadingRepository.findByStorageUnitId(u.getId())
+                        .forEach(sensorReadingRepository::delete);
+                storageUnitRepository.delete(u);
+            });
+            farmRepository.delete(farmA);
+        }
+        if (farmB != null && farmB.getId() != null) {
+            storageUnitRepository.findByFarmId(farmB.getId()).forEach(storageUnitRepository::delete);
+            farmRepository.delete(farmB);
+        }
+        userRepository.findByEmail("storage_farmer_a@test.com").ifPresent(u -> {
+            alertRepository.findAll().stream()
+                    .filter(a -> a.getUser() != null && a.getUser().getId().equals(u.getId()))
+                    .forEach(alertRepository::delete);
+            userRepository.delete(u);
+        });
+        userRepository.findByEmail("storage_farmer_b@test.com").ifPresent(u -> {
+            alertRepository.findAll().stream()
+                    .filter(a -> a.getUser() != null && a.getUser().getId().equals(u.getId()))
+                    .forEach(alertRepository::delete);
+            userRepository.delete(u);
+        });
     }
 
     @Test

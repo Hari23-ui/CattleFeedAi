@@ -4,6 +4,7 @@ import com.cattlefeedai.api.entity.*;
 import com.cattlefeedai.api.entity.enums.*;
 import com.cattlefeedai.api.repository.*;
 import com.cattlefeedai.api.security.JwtService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -249,6 +250,44 @@ public class EvidenceIntegrationTest {
         consultationA.setExpertResponse("Ration is balanced for mid lactation.");
         consultationA.setExpertNotes("Keep observing daily dry matter intake.");
         consultationA = consultationRepository.save(consultationA);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (consultationA != null && consultationA.getId() != null) {
+            consultationRepository.delete(consultationA);
+        }
+        if (advisoryA != null && advisoryA.getId() != null) {
+            advisoryRepository.delete(advisoryA);
+        }
+        if (feedPlanA != null && feedPlanA.getId() != null) {
+            feedPlanRepository.delete(feedPlanA);
+        }
+        if (testResultA != null && testResultA.getId() != null) {
+            testResultRepository.delete(testResultA);
+        }
+        if (feedA != null && feedA.getId() != null) {
+            feedSampleRepository.delete(feedA);
+        }
+        if (animalA != null && animalA.getId() != null) {
+            animalRepository.delete(animalA);
+        }
+        if (farmA != null && farmA.getId() != null) {
+            farmRepository.delete(farmA);
+        }
+        if (farmB != null && farmB.getId() != null) {
+            farmRepository.delete(farmB);
+        }
+        if (expertA != null && expertA.getId() != null) {
+            expertRepository.delete(expertA);
+        }
+        if (expertB != null && expertB.getId() != null) {
+            expertRepository.delete(expertB);
+        }
+        userRepository.findByEmail("farmerA_m12@test.com").ifPresent(userRepository::delete);
+        userRepository.findByEmail("farmerB_m12@test.com").ifPresent(userRepository::delete);
+        userRepository.findByEmail("dr_smith_m12@test.com").ifPresent(userRepository::delete);
+        userRepository.findByEmail("dr_jones_m12@test.com").ifPresent(userRepository::delete);
     }
 
     // ── Animal Evidence Endpoint Tests ─────────────────────────

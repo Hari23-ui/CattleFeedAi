@@ -8,6 +8,7 @@ import com.cattlefeedai.api.entity.enums.Severity;
 import com.cattlefeedai.api.repository.AlertRepository;
 import com.cattlefeedai.api.repository.UserRepository;
 import com.cattlefeedai.api.security.JwtService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -86,6 +87,22 @@ public class AlertIntegrationTest {
                         List.of(new SimpleGrantedAuthority("ROLE_FARMER"))
                 );
         tokenFarmerB = jwtService.generateToken(principalB);
+    }
+
+    @AfterEach
+    void tearDown() {
+        userRepository.findByEmail("farmerA_test@m10.com").ifPresent(u -> {
+            alertRepository.findAll().stream()
+                    .filter(a -> a.getUser() != null && a.getUser().getId().equals(u.getId()))
+                    .forEach(alertRepository::delete);
+            userRepository.delete(u);
+        });
+        userRepository.findByEmail("farmerB_test@m10.com").ifPresent(u -> {
+            alertRepository.findAll().stream()
+                    .filter(a -> a.getUser() != null && a.getUser().getId().equals(u.getId()))
+                    .forEach(alertRepository::delete);
+            userRepository.delete(u);
+        });
     }
 
     @Test
@@ -187,7 +204,7 @@ public class AlertIntegrationTest {
     }
 
     @Test
-    @DisplayName("PUT /api/alerts/{id}/read: Updates read status in MySQL and returns 200")
+    @DisplayName("PUT /api/alerts/{id}/read: Updates read status in database and returns 200")
     void testMarkAsRead_Success() throws Exception {
         Alert alert = new Alert();
         alert.setUser(farmerA);

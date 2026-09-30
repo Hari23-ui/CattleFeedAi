@@ -3,21 +3,20 @@ CATTLEFEEDAI — OFFICIAL SYSTEM STARTUP COMMANDS
 ================================================================================
 
 ORDER OF STARTUP:
-1. MySQL 8.0 (Service: MySQL80 on Port 3306)
+1. Supabase PostgreSQL (Cloud Database: aws-0-ap-south-1.pooler.supabase.com)
 2. FastAPI AI Service (Python 3.10 Virtual Environment on Port 8000)
-3. Spring Boot Backend (Java 24 / Maven on Port 8080)
+3. Spring Boot Backend (Java 17/24 / Maven on Port 8080)
 4. React Native / Expo Frontend (Metro Bundler on Port 8081)
 
 --------------------------------------------------------------------------------
-PREREQUISITE: Ensure MySQL Service is Running (Port 3306)
+PREREQUISITE: Set Supabase PostgreSQL Environment Variables
 --------------------------------------------------------------------------------
-In PowerShell (Administrator or standard):
-Get-Service MySQL80
+In PowerShell:
+$env:DATABASE_URL="jdbc:postgresql://aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+$env:DATABASE_USERNAME="postgres.fwlcvlbctsuzdqickzdl"
+$env:DATABASE_PASSWORD="your_supabase_password"
 
-If status is Stopped, start it:
-Start-Service MySQL80
-
-Database "cattlefeedai" already exists with all 16 tables.
+Database schema with all 16 tables already provisioned in Supabase.
 
 --------------------------------------------------------------------------------
 TERMINAL 1 — FastAPI AI Microservice (Port 8000)
