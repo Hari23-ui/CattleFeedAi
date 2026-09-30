@@ -1,0 +1,165 @@
+Instead of making the video feel like “Here is our Farm module… here is our AI module…”, we make the entire demo follow one farmer's journey.
+The story becomes:
+A farmer has a cattle farm. He wants to make sure his animals receive good feed, his silage is safe, and his storage conditions are monitored. CattleFeedAI becomes his single digital assistant throughout that journey.
+
+That gives the judges a reason to care about every feature.
+
+🎬 CattleFeedAI — Story-Based Demo Script
+Target: ~5 minutes
+Story: “A day in the life of a farmer using CattleFeedAI”
+🎬 00:00 – 00:20 — THE PROBLEM
+Screen
+Start with the Landing Page.
+Don't click anything for the first few seconds. Let the screen breathe.
+🎙️ Voice-over
+“Imagine a farmer managing a cattle farm every day.”
+“He has animals to take care of, feed to manage, silage to store, test results to track, and many decisions to make.”
+“But all this information is usually scattered across notebooks, lab reports, and manual observations.”
+“This is where CattleFeedAI comes in.”
+
+Then click Get Started.
+“CattleFeedAI brings these activities together into one digital platform.”
+
+🔐 00:20 – 00:35 — MEETING THE FARMER
+Screen
+Sign In → Dashboard.
+🎙️ Voice-over
+“Our farmer starts by securely signing into the application.”
+“Once logged in, he reaches a unified dashboard where his farm, animals, feed, quality information, alerts, consultations, analytics, and storage monitoring are all connected.”
+
+🐄 00:35 – 01:00 — MEET THE FARM
+Screen
+Dashboard → Farms → Farm Details → Animals → Animal Details.
+🎙️ Voice-over
+“Let's follow his journey.”
+“He first registers his farm and adds his cattle.”
+“For every animal, CattleFeedAI maintains the relevant profile information.”
+“Now the farmer has a digital record of his farm and livestock instead of depending completely on manual records.”
+
+🌾 01:00 – 01:25 — WHAT IS HE FEEDING?
+Screen
+Feed Samples → Feed Details → Silage Samples → Silage Details.
+🎙️ Voice-over
+“The next question is simple — what is he feeding his animals?”
+“He records the feed being used on his farm.”
+“He can also register his silage separately and maintain its information.”
+“Now the farmer's animals, feed, and silage are connected inside the same system.”
+
+🧪 01:25 – 01:55 — IS THE FEED SAFE?
+Screen
+Test Result → Record Test Result → enter values → Submit.
+🎙️ Voice-over
+“But recording the feed isn't enough.”
+“The farmer wants to understand its quality.”
+“So when laboratory or manually obtained test results are available, he records parameters such as moisture, crude protein, fiber, energy value, aflatoxin, mycotoxin, pH, mineral status, and other observed indicators.”
+
+Submit.
+“CattleFeedAI evaluates the available information and converts these measurements into understandable quality and risk information.”
+
+⚠️ 01:55 – 02:15 — SOMETHING NEEDS ATTENTION
+Screen
+Quality → Risk → Advisory.
+🎙️ Voice-over
+“Instead of forcing the farmer to interpret every value on his own, the system highlights potential areas that need attention.”
+“It provides quality status, risk indicators, and relevant advisory information based on the available records.”
+“The farmer can now see what needs to be reviewed.”
+
+📷 02:15 – 02:45 — WHAT DOES THE FEED LOOK LIKE?
+Screen
+Feed Details → Camera → Capture → Preview → Analyze.
+🎙️ Voice-over
+“But numbers aren't always enough.”
+“The farmer can also visually inspect the feed or silage using the camera.”
+“He captures an image, and CattleFeedAI sends it through its computer vision service for visual surface screening.”
+
+Show result.
+“The system looks for visual indicators such as mould-like appearance, spoilage-like discolouration, and foreign material.”
+
+Show disclaimer.
+“Importantly, this is visual screening only. The camera does not measure chemical properties, and the system does not diagnose animal diseases.”
+
+🐄 02:45 – 03:05 — WHAT ABOUT THE ANIMAL?
+Screen
+Animal → Health Screening.
+🎙️ Voice-over
+“Now our farmer has another question.”
+“Could the available feed-related information indicate a possible concern for his animal?”
+“CattleFeedAI combines the available animal profile, feed and silage history, test results, and observations to perform animal health risk screening.”
+“The result is presented as a potential concern for further review, not as a veterinary diagnosis.”
+
+📋 03:05 – 03:25 — WHAT SHOULD HE PLAN?
+Screen
+Feed Plans → Create Feed Plan → Details.
+🎙️ Voice-over
+“With the information available, the farmer can organize his feeding activities through feed plans.”
+“He can connect the plan to the animal and relevant feed or silage, and record quantity, frequency, dates, and notes.”
+“This gives him a structured way to manage his feeding workflow.”
+
+👨‍⚕️ 03:25 – 03:55 — WHEN HE NEEDS AN EXPERT
+Screen
+Consultation → Request → Evidence Summary → Expert Response.
+🎙️ Voice-over
+“But sometimes the farmer needs professional guidance.”
+“Instead of sending scattered screenshots and reports to an expert, he can create a consultation directly from the platform.”
+
+Open Evidence Summary.
+“The expert can review a unified evidence summary containing the animal information, feed and silage records, laboratory results, quality and risk assessments, visual screening, health screening, feed plans, advisories, and historical information.”
+
+Show response.
+“The expert can then review the available evidence and provide a professional response to the farmer.”
+
+📊 03:55 – 04:15 — LOOKING BACK
+Screen
+Analytics → Feed History → Silage History → Animal Analytics.
+🎙️ Voice-over
+“And the farmer doesn't have to look at every record individually.”
+“Through historical analytics, he can review the available feed, silage, and animal-related records over time.”
+“This gives him a clearer picture of what has been happening on his farm.”
+
+🌡️ 04:15 – 04:50 — THE STORAGE GODOWN
+Screen
+Storage Monitoring → Demo Storage Godown.
+🎙️ Voice-over
+“But there is one more place the farmer cannot ignore — the storage godown.”
+“Poor storage conditions can become a potential spoilage concern, so CattleFeedAI also introduces storage condition monitoring.”
+
+Show temperature/pH/humidity.
+“The system is designed to receive temperature and pH telemetry from an ESP32-based sensor setup, with optional humidity monitoring.”
+
+Show demo reading.
+“For this demonstration, we are using demo telemetry to simulate the sensor readings.”
+
+Trigger abnormal reading.
+“When a configured storage condition changes, the backend monitoring service evaluates the reading.”
+
+Show alert appearing.
+“If the condition requires attention, CattleFeedAI generates an alert directly for the farmer.”
+
+📱 04:50 – 05:05 — ALERT / FUTURE SMS
+Screen
+Alerts → Storage Alert.
+🎙️ Voice-over
+“The farmer can immediately see the storage alert inside the application.”
+“The same alert architecture can also be extended to SMS notifications, allowing important storage-condition alerts to reach the farmer's phone.”
+
+🌾 05:05 – 05:25 — THE COMPLETE JOURNEY
+Screen
+Go back to Dashboard and slowly show the modules.
+🎙️ Voice-over
+“And this brings the entire journey together.”
+“From registering the farm and animals…”
+“to recording feed and silage…”
+“from laboratory testing and visual screening…”
+“to health risk screening and feed planning…”
+“from expert consultation and historical analytics…”
+“to real-time-ready storage monitoring and alerts.”
+
+🔥 05:25 – 05:40 — FINAL LINE
+Screen
+CattleFeedAI logo / Landing Page / Dashboard.
+🎙️ Voice-over
+“CattleFeedAI is not just another record-keeping application.”
+“It connects the farmer's data, assessments, professional support, and storage monitoring into one continuous workflow.”
+“From feed to animal, from storage to decision — CattleFeedAI puts the information together, so the farmer can make better-informed decisions.”
+
+END.

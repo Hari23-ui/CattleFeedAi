@@ -14,11 +14,16 @@ class Settings(BaseSettings):
     SERVICE_VERSION: str = "0.3.0"
     SERVICE_DESCRIPTION: str = "AI service for visual feed and silage screening with ML/CV inference architecture."
 
-    # Server Configuration
+    # Server Configuration (Supports Render/Cloud PORT environment variable)
     AI_SERVICE_HOST: str = "0.0.0.0"
     AI_SERVICE_PORT: int = 8000
+    PORT: Optional[int] = None
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
+
+    @property
+    def effective_port(self) -> int:
+        return self.PORT if self.PORT is not None else self.AI_SERVICE_PORT
 
     # Image Validation Constraints
     MAX_IMAGE_SIZE_MB: int = 10

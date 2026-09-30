@@ -19,6 +19,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # Python / FastAPI
+.env
+.env.local
 **/venv/
 **/__pycache__/
 **/.pytest_cache/

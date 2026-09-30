@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
         settings.SERVICE_VERSION,
         settings.APP_ENV,
         settings.AI_SERVICE_HOST,
-        settings.AI_SERVICE_PORT,
+        settings.effective_port,
     )
     logger.info("Allowed image types: %s", ", ".join(settings.ALLOWED_IMAGE_TYPES))
     logger.info("Maximum image size: %d MB", settings.MAX_IMAGE_SIZE_MB)
@@ -137,3 +137,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Register Routers
 app.include_router(health_router)
 app.include_router(analysis_router)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host=settings.AI_SERVICE_HOST, port=settings.effective_port, reload=False)
